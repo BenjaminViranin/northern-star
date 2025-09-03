@@ -1,0 +1,162 @@
+import 'dart:convert';
+import 'package:drift/drift.dart';
+import 'package:flutter_quill/flutter_quill.dart';
+// import 'package:uuid/uuid.dart'; // TODO: Use when implementing UUID generation
+
+import '../database/database.dart';
+// import '../models/note_model.dart'; // TODO: Use when implementing full sync
+// import '../../core/config/supabase_config.dart'; // TODO: Use when implementing full sync
+
+class NotesRepository {
+  final AppDatabase _database;
+  // final _uuid = const Uuid(); // TODO: Use when implementing UUID generation
+
+  NotesRepository(this._database);
+
+  // Local operations (always work offline)
+  Future<List<Note>> getAllNotes() async {
+    return await _database.getAllNotes();
+  }
+
+  Future<List<Note>> getNotesByGroup(int groupId) async {
+    return await _database.getNotesByGroup(groupId);
+  }
+
+  Future<Note?> getNoteById(int id) async {
+    return await _database.getNoteById(id);
+  }
+
+  Future<int> createNote({
+    required String title,
+    required String content,
+    required int groupId,
+  }) async {
+    final now = DateTime.now();
+    final plainText = _extractPlainText(content);
+    final markdown = _convertToMarkdown(content);
+
+    final note = NotesCompanion(
+      title: Value(title),
+      content: Value(content),
+      markdown: Value(markdown),
+      plainText: Value(plainText),
+      groupId: Value(groupId),
+      createdAt: Value(now),
+      updatedAt: Value(now),
+      needsSync: const Value(true),
+    );
+
+    final id = await _database.insertNote(note);
+
+    // Add to sync queue
+    await _addToSyncQueue('create', 'notes', id, {
+      'title': title,
+      'content': content,
+      'markdown': markdown,
+      'plain_text': plainText,
+      'group_id': groupId,
+      'created_at': now.toIso8601String(),
+      'updated_at': now.toIso8601String(),
+    });
+
+    return id;
+  }
+
+  Future<bool> updateNote({
+    required int id,
+    String? title,
+    String? content,
+    int? groupId,
+  }) async {
+    final now = DateTime.now();
+    String? plainText;
+    String? markdown;
+
+    if (content != null) {
+      plainText = _extractPlainText(content);
+      markdown = _convertToMarkdown(content);
+    }
+
+    final note = NotesCompanion(
+      title: title != null ? Value(title) : const Value.absent(),
+      content: content != null ? Value(content) : const Value.absent(),
+      markdown: markdown != null ? Value(markdown) : const Value.absent(),
+      plainText: plainText != null ? Value(plainText) : const Value.absent(),
+      groupId: groupId != null ? Value(groupId) : const Value.absent(),
+      updatedAt: Value(now),
+      needsSync: const Value(true),
+      version: const Value.absent(), // Will be incremented by trigger
+    );
+
+    final success = await _database.updateNote(id, note);
+
+    if (success) {
+      // Add to sync queue
+      final updateData = <String, dynamic>{
+        'updated_at': now.toIso8601String(),
+      };
+
+      if (title != null) updateData['title'] = title;
+      if (content != null) updateData['content'] = content;
+      if (markdown != null) updateData['markdown'] = markdown;
+      if (plainText != null) updateData['plain_text'] = plainText;
+      if (groupId != null) updateData['group_id'] = groupId;
+
+      await _addToSyncQueue('update', 'notes', id, updateData);
+    }
+
+    return success;
+  }
+
+  Future<void> deleteNote(int id) async {
+    await _database.softDeleteNote(id);
+
+    // Add to sync queue
+    await _addToSyncQueue('delete', 'notes', id, {
+      'is_deleted': true,
+      'updated_at': DateTime.now().toIso8601String(),
+    });
+  }
+
+  Future<List<Note>> searchNotes(String query) async {
+    if (query.isEmpty) return getAllNotes();
+
+    final notes = await _database.getAllNotes();
+    return notes
+        .where(
+            (note) => note.title.toLowerCase().contains(query.toLowerCase()) || note.plainText.toLowerCase().contains(query.toLowerCase()))
+        .toList();
+  }
+
+  // Helper methods
+  String _extractPlainText(String deltaJson) {
+    try {
+      final delta = Delta.fromJson(jsonDecode(deltaJson));
+      final document = Document.fromDelta(delta);
+      return document.toPlainText();
+    } catch (e) {
+      return deltaJson; // Fallback to raw content
+    }
+  }
+
+  String _convertToMarkdown(String deltaJson) {
+    try {
+      final delta = Delta.fromJson(jsonDecode(deltaJson));
+      final document = Document.fromDelta(delta);
+      // TODO: Implement proper Delta to Markdown conversion
+      // For now, return plain text
+      return document.toPlainText();
+    } catch (e) {
+      return deltaJson; // Fallback to raw content
+    }
+  }
+
+  Future<void> _addToSyncQueue(String operation, String table, int localId, Map<String, dynamic> data) async {
+    await _database.addToSyncQueue(SyncQueueCompanion(
+      operation: Value(operation),
+      entityTable: Value(table),
+      localId: Value(localId),
+      data: Value(jsonEncode(data)),
+    ));
+  }
+}
