@@ -13,8 +13,7 @@ class HomeScreen extends ConsumerStatefulWidget {
   ConsumerState<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends ConsumerState<HomeScreen>
-    with SingleTickerProviderStateMixin {
+class _HomeScreenState extends ConsumerState<HomeScreen> with SingleTickerProviderStateMixin {
   late TabController _tabController;
 
   @override
@@ -35,45 +34,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       backgroundColor: AppTheme.backgroundDark,
       body: Column(
         children: [
-          // Header
-          Container(
-            padding: const EdgeInsets.fromLTRB(24, 48, 24, 16),
-            decoration: const BoxDecoration(
-              color: AppTheme.surfaceDark,
-              border: Border(
-                bottom: BorderSide(color: AppTheme.border),
-              ),
-            ),
-            child: Row(
-              children: [
-                const Icon(
-                  Icons.star,
-                  color: AppTheme.primaryTeal,
-                  size: 32,
-                ),
-                const SizedBox(width: 12),
-                const Text(
-                  'Northern Star',
-                  style: TextStyle(
-                    color: AppTheme.textPrimary,
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const Spacer(),
-                IconButton(
-                  icon: const Icon(Icons.sync),
-                  color: AppTheme.textSecondary,
-                  onPressed: () {
-                    // TODO: Trigger manual sync
-                  },
-                ),
-              ],
-            ),
-          ),
-
           // Tab Bar
           Container(
+            padding: const EdgeInsets.fromLTRB(24, 48, 24, 16),
             decoration: const BoxDecoration(
               color: AppTheme.surfaceDark,
               border: Border(
@@ -83,18 +46,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             child: TabBar(
               controller: _tabController,
               tabs: const [
-                Tab(
-                  icon: Icon(Icons.note),
-                  text: 'Notes',
-                ),
-                Tab(
-                  icon: Icon(Icons.folder),
-                  text: 'Groups',
-                ),
-                Tab(
-                  icon: Icon(Icons.settings),
-                  text: 'Settings',
-                ),
+                Tab(icon: Icon(Icons.note)),
+                Tab(icon: Icon(Icons.folder)),
+                Tab(icon: Icon(Icons.settings)),
               ],
             ),
           ),

@@ -14,172 +14,175 @@ class GroupsTab extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final groups = ref.watch(groupsProvider);
 
-    return Padding(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+    return Stack(
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'Groups',
-                style: TextStyle(
-                  color: AppTheme.textPrimary,
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
+              const SizedBox(height: 64), // Space for floating button
+              Expanded(
+                child: groups.when(
+                  data: (groupList) => GridView.builder(
+                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 3,
+                      crossAxisSpacing: 16,
+                      mainAxisSpacing: 16,
+                      childAspectRatio: 2,
+                    ),
+                    itemCount: groupList.length,
+                    itemBuilder: (context, index) {
+                      final group = groupList[index];
+                      final noteCount = ref.watch(notesByGroupProvider(group.id));
+
+                      return Card(
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(12),
+                          onTap: () {
+                            // Set filter to this group and switch to notes tab
+                            ref.read(selectedGroupProvider.notifier).state = group.id;
+                            // TODO: Switch to notes tab
+                          },
+                          child: Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Container(
+                                      width: 16,
+                                      height: 16,
+                                      decoration: BoxDecoration(
+                                        color: Color(int.parse(group.color.substring(1), radix: 16) + 0xFF000000),
+                                        shape: BoxShape.circle,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        group.name,
+                                        style: const TextStyle(
+                                          color: AppTheme.textPrimary,
+                                          fontWeight: FontWeight.w600,
+                                          fontSize: 16,
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                    if (group.name != 'Uncategorized')
+                                      PopupMenuButton(
+                                        icon: const Icon(
+                                          Icons.more_vert,
+                                          color: AppTheme.textSecondary,
+                                          size: 16,
+                                        ),
+                                        itemBuilder: (context) => const [
+                                          PopupMenuItem(
+                                            value: 'edit',
+                                            child: Row(
+                                              children: [
+                                                Icon(Icons.edit, size: 16),
+                                                SizedBox(width: 8),
+                                                Text('Edit'),
+                                              ],
+                                            ),
+                                          ),
+                                          PopupMenuItem(
+                                            value: 'delete',
+                                            child: Row(
+                                              children: [
+                                                Icon(Icons.delete, size: 16, color: Colors.red),
+                                                SizedBox(width: 8),
+                                                Text('Delete', style: TextStyle(color: Colors.red)),
+                                              ],
+                                            ),
+                                          ),
+                                        ],
+                                        onSelected: (value) {
+                                          switch (value) {
+                                            case 'edit':
+                                              _showEditGroupDialog(context, group);
+                                              break;
+                                            case 'delete':
+                                              _showDeleteGroupDialog(context, ref, group);
+                                              break;
+                                          }
+                                        },
+                                      ),
+                                  ],
+                                ),
+                                const Spacer(),
+                                noteCount.when(
+                                  data: (notes) => Text(
+                                    '${notes.length} note${notes.length == 1 ? '' : 's'}',
+                                    style: const TextStyle(
+                                      color: AppTheme.textSecondary,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                  loading: () => const Text(
+                                    'Loading...',
+                                    style: TextStyle(
+                                      color: AppTheme.textSecondary,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                  error: (error, stack) => const Text(
+                                    'Error',
+                                    style: TextStyle(
+                                      color: Colors.red,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                  loading: () => const Center(child: CircularProgressIndicator()),
+                  error: (error, stack) => Center(
+                    child: Text(
+                      'Error loading groups: $error',
+                      style: const TextStyle(color: Colors.red),
+                    ),
+                  ),
                 ),
-              ),
-              const Spacer(),
-              ElevatedButton.icon(
-                onPressed: () => _showCreateGroupDialog(context),
-                icon: const Icon(Icons.add),
-                label: const Text('New Group'),
               ),
             ],
           ),
-          const SizedBox(height: 16),
-          const Text(
-            'Organize your notes into groups for better management.',
-            style: TextStyle(
-              color: AppTheme.textSecondary,
-              fontSize: 14,
+        ),
+
+        // Floating Add Button
+        Positioned(
+          top: 16,
+          right: 16,
+          child: Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: AppTheme.primaryTeal,
+              borderRadius: BorderRadius.circular(8),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.2),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: IconButton(
+              icon: const Icon(Icons.add, color: Colors.white),
+              onPressed: () => _showCreateGroupDialog(context),
             ),
           ),
-          const SizedBox(height: 24),
-          Expanded(
-            child: groups.when(
-              data: (groupList) => GridView.builder(
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 3,
-                  crossAxisSpacing: 16,
-                  mainAxisSpacing: 16,
-                  childAspectRatio: 2,
-                ),
-                itemCount: groupList.length,
-                itemBuilder: (context, index) {
-                  final group = groupList[index];
-                  final noteCount = ref.watch(notesByGroupProvider(group.id));
-                  
-                  return Card(
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(12),
-                      onTap: () {
-                        // Set filter to this group and switch to notes tab
-                        ref.read(selectedGroupProvider.notifier).state = group.id;
-                        // TODO: Switch to notes tab
-                      },
-                      child: Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Container(
-                                  width: 16,
-                                  height: 16,
-                                  decoration: BoxDecoration(
-                                    color: Color(int.parse(group.color.substring(1), radix: 16) + 0xFF000000),
-                                    shape: BoxShape.circle,
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Text(
-                                    group.name,
-                                    style: const TextStyle(
-                                      color: AppTheme.textPrimary,
-                                      fontWeight: FontWeight.w600,
-                                      fontSize: 16,
-                                    ),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                                if (group.name != 'Uncategorized')
-                                  PopupMenuButton(
-                                    icon: const Icon(
-                                      Icons.more_vert,
-                                      color: AppTheme.textSecondary,
-                                      size: 16,
-                                    ),
-                                    itemBuilder: (context) => [
-                                      PopupMenuItem(
-                                        value: 'edit',
-                                        child: const Row(
-                                          children: [
-                                            Icon(Icons.edit, size: 16),
-                                            SizedBox(width: 8),
-                                            Text('Edit'),
-                                          ],
-                                        ),
-                                      ),
-                                      PopupMenuItem(
-                                        value: 'delete',
-                                        child: const Row(
-                                          children: [
-                                            Icon(Icons.delete, size: 16, color: Colors.red),
-                                            SizedBox(width: 8),
-                                            Text('Delete', style: TextStyle(color: Colors.red)),
-                                          ],
-                                        ),
-                                      ),
-                                    ],
-                                    onSelected: (value) {
-                                      switch (value) {
-                                        case 'edit':
-                                          _showEditGroupDialog(context, group);
-                                          break;
-                                        case 'delete':
-                                          _showDeleteGroupDialog(context, ref, group);
-                                          break;
-                                      }
-                                    },
-                                  ),
-                              ],
-                            ),
-                            const Spacer(),
-                            noteCount.when(
-                              data: (notes) => Text(
-                                '${notes.length} note${notes.length == 1 ? '' : 's'}',
-                                style: const TextStyle(
-                                  color: AppTheme.textSecondary,
-                                  fontSize: 12,
-                                ),
-                              ),
-                              loading: () => const Text(
-                                'Loading...',
-                                style: TextStyle(
-                                  color: AppTheme.textSecondary,
-                                  fontSize: 12,
-                                ),
-                              ),
-                              error: (error, stack) => const Text(
-                                'Error',
-                                style: TextStyle(
-                                  color: Colors.red,
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  );
-                },
-              ),
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (error, stack) => Center(
-                child: Text(
-                  'Error loading groups: $error',
-                  style: const TextStyle(color: Colors.red),
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 

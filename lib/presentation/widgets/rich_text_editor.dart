@@ -18,12 +18,30 @@ class RichTextEditor extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     if (noteId == null) {
-      return const Center(
-        child: Text(
-          'Select a note to start editing',
-          style: TextStyle(
-            color: AppTheme.textSecondary,
-            fontSize: 16,
+      return Container(
+        decoration: BoxDecoration(
+          color: AppTheme.surfaceDark,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: AppTheme.border),
+        ),
+        child: const Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.note_add,
+                size: 64,
+                color: AppTheme.textSecondary,
+              ),
+              SizedBox(height: 16),
+              Text(
+                'Create a new note to start writing',
+                style: TextStyle(
+                  color: AppTheme.textSecondary,
+                  fontSize: 16,
+                ),
+              ),
+            ],
           ),
         ),
       );
@@ -72,7 +90,7 @@ class RichTextEditor extends ConsumerWidget {
                   controller: editorState.controller,
                 ),
                 child: QuillEditor.basic(
-                  configurations: QuillEditorConfigurations(
+                  configurations: const QuillEditorConfigurations(
                     scrollable: true,
                     padding: EdgeInsets.zero,
                   ),
