@@ -62,7 +62,6 @@ dependencies:
 
     # Debouncing
     rxdart: ^0.27.7
-    window_manager: ^0.5.1
 
 dev_dependencies:
     flutter_test:

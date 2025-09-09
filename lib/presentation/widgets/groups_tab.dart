@@ -17,11 +17,11 @@ class GroupsTab extends ConsumerWidget {
     return Stack(
       children: [
         Padding(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.fromLTRB(16, 16, 80, 16), // Extra right padding for button
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const SizedBox(height: 16), // Reduced space for floating button
+              const SizedBox(height: 8), // Minimal space for floating button
               Expanded(
                 child: groups.when(
                   data: (groupList) => GridView.builder(

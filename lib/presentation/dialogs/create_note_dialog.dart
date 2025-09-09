@@ -53,23 +53,25 @@ class _CreateNoteDialogState extends ConsumerState<CreateNoteDialog> {
                 decoration: const InputDecoration(
                   labelText: 'Group',
                 ),
-                items: groupList.map((group) => DropdownMenuItem<int>(
-                  value: group.id,
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 12,
-                        height: 12,
-                        decoration: BoxDecoration(
-                          color: Color(int.parse(group.color.substring(1), radix: 16) + 0xFF000000),
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Text(group.name),
-                    ],
-                  ),
-                )).toList(),
+                items: groupList
+                    .map((group) => DropdownMenuItem<int>(
+                          value: group.id,
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 12,
+                                height: 12,
+                                decoration: BoxDecoration(
+                                  color: Color(int.parse(group.color.substring(1), radix: 16) + 0xFF000000),
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Text(group.name),
+                            ],
+                          ),
+                        ))
+                    .toList(),
                 onChanged: (value) {
                   setState(() {
                     _selectedGroupId = value;
@@ -130,7 +132,7 @@ class _CreateNoteDialogState extends ConsumerState<CreateNoteDialog> {
       final repository = ref.read(notesRepositoryProvider);
       final noteId = await repository.createNote(
         title: _titleController.text.trim(),
-        content: '[]', // Empty Quill Delta
+        content: '[{"insert":"\\n"}]', // Valid Quill Delta with newline
         groupId: _selectedGroupId!,
       );
 

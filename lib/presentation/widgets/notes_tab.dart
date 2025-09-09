@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/app_theme.dart';
+import '../providers/database_provider.dart';
 import '../providers/editor_provider.dart';
 import '../widgets/rich_text_editor.dart';
 import '../dialogs/create_note_dialog.dart';
@@ -12,34 +13,83 @@ class NotesTab extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final currentNoteId = ref.watch(currentNoteIdProvider);
+    final filteredNotes = ref.watch(filteredNotesProvider);
 
-    return Stack(
+    return Column(
       children: [
-        // Main Editor
-        RichTextEditor(noteId: currentNoteId),
-
-        // Floating Add Button
-        Positioned(
-          top: 16,
-          right: 16,
-          child: Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              color: AppTheme.primaryTeal,
-              borderRadius: BorderRadius.circular(8),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.2),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
+        // Quick Access Dropdown
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          decoration: const BoxDecoration(
+            color: AppTheme.surfaceDark,
+            border: Border(
+              bottom: BorderSide(color: AppTheme.border),
+            ),
+          ),
+          child: filteredNotes.when(
+            data: (notes) => DropdownButtonFormField<int?>(
+              value: currentNoteId,
+              decoration: const InputDecoration(
+                labelText: 'Quick Access',
+                prefixIcon: Icon(Icons.search),
+                border: OutlineInputBorder(),
+                contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              ),
+              items: [
+                const DropdownMenuItem<int?>(
+                  value: null,
+                  child: Text('Select a note...'),
                 ),
+                ...notes.map((note) => DropdownMenuItem<int?>(
+                      value: note.id,
+                      child: Text(
+                        note.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    )),
               ],
+              onChanged: (value) {
+                ref.read(currentNoteIdProvider.notifier).state = value;
+              },
             ),
-            child: IconButton(
-              icon: const Icon(Icons.add, color: Colors.white),
-              onPressed: () => _showCreateNoteDialog(context, ref),
-            ),
+            loading: () => const LinearProgressIndicator(),
+            error: (error, stack) => Text('Error: $error'),
+          ),
+        ),
+
+        // Main Content
+        Expanded(
+          child: Stack(
+            children: [
+              // Main Editor
+              RichTextEditor(noteId: currentNoteId),
+
+              // Floating Add Button
+              Positioned(
+                top: 16,
+                right: 16,
+                child: Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: AppTheme.primaryTeal,
+                    borderRadius: BorderRadius.circular(8),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.2),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: IconButton(
+                    icon: const Icon(Icons.add, color: Colors.white),
+                    onPressed: () => _showCreateNoteDialog(context, ref),
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ],

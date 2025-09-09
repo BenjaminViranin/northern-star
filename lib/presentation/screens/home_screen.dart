@@ -36,7 +36,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with SingleTickerProvid
         children: [
           // Tab Bar
           Container(
-            padding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
+            padding: const EdgeInsets.fromLTRB(24, 16, 24, 8),
             decoration: const BoxDecoration(
               color: AppTheme.surfaceDark,
               border: Border(
@@ -46,9 +46,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with SingleTickerProvid
             child: TabBar(
               controller: _tabController,
               tabs: const [
-                Tab(icon: Icon(Icons.note)),
-                Tab(icon: Icon(Icons.folder)),
-                Tab(icon: Icon(Icons.settings)),
+                Tab(icon: Icon(Icons.note, size: 28)),
+                Tab(icon: Icon(Icons.folder, size: 28)),
+                Tab(icon: Icon(Icons.settings, size: 28)),
               ],
             ),
           ),
