@@ -21,7 +21,7 @@ class GroupsTab extends ConsumerWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const SizedBox(height: 64), // Space for floating button
+              const SizedBox(height: 16), // Reduced space for floating button
               Expanded(
                 child: groups.when(
                   data: (groupList) => GridView.builder(

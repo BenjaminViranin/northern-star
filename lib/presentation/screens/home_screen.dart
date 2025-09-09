@@ -36,7 +36,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with SingleTickerProvid
         children: [
           // Tab Bar
           Container(
-            padding: const EdgeInsets.fromLTRB(24, 48, 24, 16),
+            padding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
             decoration: const BoxDecoration(
               color: AppTheme.surfaceDark,
               border: Border(
