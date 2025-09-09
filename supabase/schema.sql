@@ -86,6 +86,7 @@ CREATE TRIGGER update_notes_updated_at BEFORE UPDATE ON notes
 CREATE OR REPLACE FUNCTION seed_default_groups()
 RETURNS TRIGGER AS $$
 BEGIN
+    -- Use security definer to bypass RLS for this function
     INSERT INTO groups (name, color, user_id) VALUES
         ('Work', '#14b8a6', NEW.id),
         ('Personal', '#0d9488', NEW.id),
@@ -93,8 +94,13 @@ BEGIN
         ('Tasks', '#115e59', NEW.id),
         ('Uncategorized', '#134e4a', NEW.id);
     RETURN NEW;
+EXCEPTION
+    WHEN OTHERS THEN
+        -- Log the error but don't fail the user creation
+        RAISE WARNING 'Failed to create default groups for user %: %', NEW.id, SQLERRM;
+        RETURN NEW;
 END;
-$$ language 'plpgsql';
+$$ language 'plpgsql' SECURITY DEFINER;
 
 -- Trigger to seed groups when user signs up
 CREATE TRIGGER on_auth_user_created

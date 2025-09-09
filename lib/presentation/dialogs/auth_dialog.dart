@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../core/config/supabase_config.dart';
+import '../providers/database_provider.dart';
 
 class AuthDialog extends ConsumerStatefulWidget {
   const AuthDialog({super.key});
@@ -90,12 +91,14 @@ class _AuthDialogState extends ConsumerState<AuthDialog> {
                   style: const TextStyle(color: AppTheme.textSecondary),
                 ),
                 TextButton(
-                  onPressed: _isLoading ? null : () {
-                    setState(() {
-                      _isSignUp = !_isSignUp;
-                      _errorMessage = null;
-                    });
-                  },
+                  onPressed: _isLoading
+                      ? null
+                      : () {
+                          setState(() {
+                            _isSignUp = !_isSignUp;
+                            _errorMessage = null;
+                          });
+                        },
                   child: Text(_isSignUp ? 'Sign In' : 'Sign Up'),
                 ),
               ],
@@ -158,8 +161,12 @@ class _AuthDialogState extends ConsumerState<AuthDialog> {
           email: email,
           password: password,
         );
-        
+
         if (response.user != null) {
+          // Set up user data (create default groups, etc.)
+          final userSetupService = ref.read(userSetupServiceProvider);
+          await userSetupService.setupUserData();
+
           if (context.mounted) {
             Navigator.of(context).pop();
             ScaffoldMessenger.of(context).showSnackBar(
@@ -175,8 +182,12 @@ class _AuthDialogState extends ConsumerState<AuthDialog> {
           email: email,
           password: password,
         );
-        
+
         if (response.user != null) {
+          // Set up user data (ensure default groups exist, etc.)
+          final userSetupService = ref.read(userSetupServiceProvider);
+          await userSetupService.setupUserData();
+
           if (context.mounted) {
             Navigator.of(context).pop();
             ScaffoldMessenger.of(context).showSnackBar(

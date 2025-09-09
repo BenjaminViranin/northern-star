@@ -4,6 +4,7 @@ import '../../data/database/database.dart';
 import '../../data/repositories/notes_repository.dart';
 import '../../data/repositories/groups_repository.dart';
 import '../../data/services/sync_service.dart';
+import '../../data/services/user_setup_service.dart';
 
 // Database instance provider
 final databaseProvider = Provider<AppDatabase>((ref) {
@@ -27,25 +28,28 @@ final syncServiceProvider = Provider<SyncService>((ref) {
   return SyncService(database);
 });
 
+// User setup service provider
+final userSetupServiceProvider = Provider<UserSetupService>((ref) {
+  final database = ref.watch(databaseProvider);
+  return UserSetupService(database);
+});
+
 // Notes state providers
 final notesProvider = StreamProvider<List<Note>>((ref) {
   final repository = ref.watch(notesRepositoryProvider);
   // Convert Future to Stream for real-time updates
-  return Stream.periodic(const Duration(seconds: 1))
-      .asyncMap((_) => repository.getAllNotes());
+  return Stream.periodic(const Duration(seconds: 1)).asyncMap((_) => repository.getAllNotes());
 });
 
 final notesByGroupProvider = StreamProvider.family<List<Note>, int>((ref, groupId) {
   final repository = ref.watch(notesRepositoryProvider);
-  return Stream.periodic(const Duration(seconds: 1))
-      .asyncMap((_) => repository.getNotesByGroup(groupId));
+  return Stream.periodic(const Duration(seconds: 1)).asyncMap((_) => repository.getNotesByGroup(groupId));
 });
 
 // Groups state providers
 final groupsProvider = StreamProvider<List<Group>>((ref) {
   final repository = ref.watch(groupsRepositoryProvider);
-  return Stream.periodic(const Duration(seconds: 1))
-      .asyncMap((_) => repository.getAllGroups());
+  return Stream.periodic(const Duration(seconds: 1)).asyncMap((_) => repository.getAllGroups());
 });
 
 // Selected group provider for filtering
@@ -62,7 +66,7 @@ final filteredNotesProvider = StreamProvider<List<Note>>((ref) {
 
   return Stream.periodic(const Duration(seconds: 1)).asyncMap((_) async {
     List<Note> notes;
-    
+
     if (selectedGroupId != null) {
       notes = await repository.getNotesByGroup(selectedGroupId);
     } else {
@@ -70,10 +74,11 @@ final filteredNotesProvider = StreamProvider<List<Note>>((ref) {
     }
 
     if (searchQuery.isNotEmpty) {
-      notes = notes.where((note) =>
-          note.title.toLowerCase().contains(searchQuery.toLowerCase()) ||
-          note.plainText.toLowerCase().contains(searchQuery.toLowerCase())
-      ).toList();
+      notes = notes
+          .where((note) =>
+              note.title.toLowerCase().contains(searchQuery.toLowerCase()) ||
+              note.plainText.toLowerCase().contains(searchQuery.toLowerCase()))
+          .toList();
     }
 
     return notes;

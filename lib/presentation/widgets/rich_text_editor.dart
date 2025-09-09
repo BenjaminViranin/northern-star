@@ -5,7 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/editor_provider.dart' as editor_provider;
 import '../../core/theme/app_theme.dart';
 
-class RichTextEditor extends ConsumerWidget {
+class RichTextEditor extends ConsumerStatefulWidget {
   final int? noteId;
   final bool readOnly;
 
@@ -16,8 +16,29 @@ class RichTextEditor extends ConsumerWidget {
   });
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    if (noteId == null) {
+  ConsumerState<RichTextEditor> createState() => _RichTextEditorState();
+}
+
+class _RichTextEditorState extends ConsumerState<RichTextEditor> {
+  QuillController? _lastController;
+
+  @override
+  void dispose() {
+    _lastController?.removeListener(_onSelectionChanged);
+    super.dispose();
+  }
+
+  void _onSelectionChanged() {
+    // Force rebuild when selection changes to update toolbar states
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final ref = this.ref;
+    if (widget.noteId == null) {
       return Container(
         decoration: BoxDecoration(
           color: AppTheme.surfaceDark,
@@ -47,7 +68,7 @@ class RichTextEditor extends ConsumerWidget {
       );
     }
 
-    final editorState = ref.watch(editor_provider.editorProvider(noteId));
+    final editorState = ref.watch(editor_provider.editorProvider(widget.noteId));
 
     if (editorState.isLoading) {
       return const Center(child: CircularProgressIndicator());
@@ -73,9 +94,17 @@ class RichTextEditor extends ConsumerWidget {
       );
     }
 
+    // Set up selection listener for toolbar updates
+    final controller = editorState.controller;
+    if (_lastController != controller) {
+      _lastController?.removeListener(_onSelectionChanged);
+      _lastController = controller;
+      controller.addListener(_onSelectionChanged);
+    }
+
     return Column(
       children: [
-        if (!readOnly) _buildToolbar(context, ref),
+        if (!widget.readOnly) _buildToolbar(context, ref),
         Expanded(
           child: Container(
             decoration: BoxDecoration(
@@ -95,7 +124,7 @@ class RichTextEditor extends ConsumerWidget {
                     padding: EdgeInsets.zero,
                     autoFocus: true,
                     placeholder: 'Start writing...',
-                    readOnly: readOnly,
+                    readOnly: widget.readOnly,
                     showCursor: true,
                   ),
                 ),
@@ -109,7 +138,7 @@ class RichTextEditor extends ConsumerWidget {
   }
 
   Widget _buildToolbar(BuildContext context, WidgetRef ref) {
-    final editorState = ref.watch(editor_provider.editorProvider(noteId));
+    final editorState = ref.watch(editor_provider.editorProvider(widget.noteId));
     final controller = editorState.controller;
 
     return Container(
@@ -125,33 +154,33 @@ class RichTextEditor extends ConsumerWidget {
           _buildToolbarButton(
             icon: Icons.format_bold,
             isActive: _isFormatActive(controller, Attribute.bold),
-            onPressed: () => ref.read(editor_provider.editorProvider(noteId).notifier).toggleBold(),
+            onPressed: () => ref.read(editor_provider.editorProvider(widget.noteId).notifier).toggleBold(),
           ),
           _buildToolbarButton(
             icon: Icons.format_italic,
             isActive: _isFormatActive(controller, Attribute.italic),
-            onPressed: () => ref.read(editor_provider.editorProvider(noteId).notifier).toggleItalic(),
+            onPressed: () => ref.read(editor_provider.editorProvider(widget.noteId).notifier).toggleItalic(),
           ),
           _buildToolbarButton(
             icon: Icons.format_underlined,
             isActive: _isFormatActive(controller, Attribute.underline),
-            onPressed: () => ref.read(editor_provider.editorProvider(noteId).notifier).toggleUnderline(),
+            onPressed: () => ref.read(editor_provider.editorProvider(widget.noteId).notifier).toggleUnderline(),
           ),
           _buildToolbarButton(
             icon: Icons.format_strikethrough,
             isActive: _isFormatActive(controller, Attribute.strikeThrough),
-            onPressed: () => ref.read(editor_provider.editorProvider(noteId).notifier).toggleStrikethrough(),
+            onPressed: () => ref.read(editor_provider.editorProvider(widget.noteId).notifier).toggleStrikethrough(),
           ),
           const VerticalDivider(color: AppTheme.border),
           _buildToolbarButton(
             icon: Icons.code,
             isActive: _isFormatActive(controller, Attribute.codeBlock),
-            onPressed: () => ref.read(editor_provider.editorProvider(noteId).notifier).toggleCodeBlock(),
+            onPressed: () => ref.read(editor_provider.editorProvider(widget.noteId).notifier).toggleCodeBlock(),
           ),
           _buildToolbarButton(
             icon: Icons.checklist,
             isActive: false, // Checklist doesn't have an active state
-            onPressed: () => ref.read(editor_provider.editorProvider(noteId).notifier).insertCheckList(),
+            onPressed: () => ref.read(editor_provider.editorProvider(widget.noteId).notifier).insertCheckList(),
           ),
         ],
       ),
