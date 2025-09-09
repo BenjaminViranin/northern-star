@@ -42,7 +42,8 @@ class GroupsTab extends ConsumerWidget {
                           onTap: () {
                             // Set filter to this group and switch to notes tab
                             ref.read(selectedGroupProvider.notifier).state = group.id;
-                            // TODO: Switch to notes tab
+                            // Switch to notes tab
+                            DefaultTabController.of(context).animateTo(0);
                           },
                           child: Padding(
                             padding: const EdgeInsets.all(16),

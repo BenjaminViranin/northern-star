@@ -17,7 +17,7 @@ class NotesTab extends ConsumerWidget {
 
     return Column(
       children: [
-        // Quick Access Dropdown
+        // Notes Dropdown and Add Button
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           decoration: const BoxDecoration(
@@ -26,71 +26,60 @@ class NotesTab extends ConsumerWidget {
               bottom: BorderSide(color: AppTheme.border),
             ),
           ),
-          child: filteredNotes.when(
-            data: (notes) => DropdownButtonFormField<int?>(
-              value: currentNoteId,
-              decoration: const InputDecoration(
-                labelText: 'Quick Access',
-                prefixIcon: Icon(Icons.search),
-                border: OutlineInputBorder(),
-                contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              ),
-              items: [
-                const DropdownMenuItem<int?>(
-                  value: null,
-                  child: Text('Select a note...'),
-                ),
-                ...notes.map((note) => DropdownMenuItem<int?>(
-                      value: note.id,
-                      child: Text(
-                        note.title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+          child: Row(
+            children: [
+              Expanded(
+                child: filteredNotes.when(
+                  data: (notes) => DropdownButtonFormField<int?>(
+                    value: notes.any((note) => note.id == currentNoteId) ? currentNoteId : null,
+                    decoration: const InputDecoration(
+                      hintText: 'Select a note...',
+                      prefixIcon: Icon(Icons.search),
+                      border: OutlineInputBorder(),
+                      contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    ),
+                    items: [
+                      const DropdownMenuItem<int?>(
+                        value: null,
+                        child: Text('Select a note...'),
                       ),
-                    )),
-              ],
-              onChanged: (value) {
-                ref.read(currentNoteIdProvider.notifier).state = value;
-              },
-            ),
-            loading: () => const LinearProgressIndicator(),
-            error: (error, stack) => Text('Error: $error'),
+                      ...notes.map((note) => DropdownMenuItem<int?>(
+                            value: note.id,
+                            child: Text(
+                              note.title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          )),
+                    ],
+                    onChanged: (value) {
+                      ref.read(currentNoteIdProvider.notifier).state = value;
+                    },
+                  ),
+                  loading: () => const LinearProgressIndicator(),
+                  error: (error, stack) => Text('Error: $error'),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: AppTheme.primaryTeal,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: IconButton(
+                  icon: const Icon(Icons.add, color: Colors.white),
+                  onPressed: () => _showCreateNoteDialog(context, ref),
+                ),
+              ),
+            ],
           ),
         ),
 
         // Main Content
         Expanded(
-          child: Stack(
-            children: [
-              // Main Editor
-              RichTextEditor(noteId: currentNoteId),
-
-              // Floating Add Button
-              Positioned(
-                top: 16,
-                right: 16,
-                child: Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    color: AppTheme.primaryTeal,
-                    borderRadius: BorderRadius.circular(8),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.2),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: IconButton(
-                    icon: const Icon(Icons.add, color: Colors.white),
-                    onPressed: () => _showCreateNoteDialog(context, ref),
-                  ),
-                ),
-              ),
-            ],
-          ),
+          child: RichTextEditor(noteId: currentNoteId),
         ),
       ],
     );
