@@ -7,6 +7,9 @@ import '../providers/database_provider.dart';
 import '../providers/editor_provider.dart';
 import '../widgets/rich_text_editor.dart';
 import '../dialogs/create_note_dialog.dart';
+import '../dialogs/rename_note_dialog.dart';
+import '../dialogs/move_note_dialog.dart';
+import '../dialogs/delete_confirmation_dialog.dart';
 
 class NotesTab extends ConsumerWidget {
   const NotesTab({super.key});
@@ -74,6 +77,54 @@ class NotesTab extends ConsumerWidget {
                 ),
               ),
               const SizedBox(width: 12),
+              // Note Management Button
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: AppTheme.surfaceDark,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: AppTheme.border),
+                ),
+                child: PopupMenuButton<String>(
+                  icon: const Icon(Icons.settings, color: AppTheme.textSecondary),
+                  enabled: currentNoteId != null,
+                  itemBuilder: (context) => [
+                    const PopupMenuItem(
+                      value: 'rename',
+                      child: Row(
+                        children: [
+                          Icon(Icons.edit, size: 16),
+                          SizedBox(width: 8),
+                          Text('Rename'),
+                        ],
+                      ),
+                    ),
+                    const PopupMenuItem(
+                      value: 'move',
+                      child: Row(
+                        children: [
+                          Icon(Icons.folder, size: 16),
+                          SizedBox(width: 8),
+                          Text('Move to Group'),
+                        ],
+                      ),
+                    ),
+                    const PopupMenuItem(
+                      value: 'delete',
+                      child: Row(
+                        children: [
+                          Icon(Icons.delete, size: 16, color: Colors.red),
+                          SizedBox(width: 8),
+                          Text('Delete', style: TextStyle(color: Colors.red)),
+                        ],
+                      ),
+                    ),
+                  ],
+                  onSelected: (value) => _handleNoteAction(context, ref, value),
+                ),
+              ),
+              const SizedBox(width: 12),
               Container(
                 width: 48,
                 height: 48,
@@ -103,5 +154,49 @@ class NotesTab extends ConsumerWidget {
       context: context,
       builder: (context) => const CreateNoteDialog(),
     );
+  }
+
+  void _handleNoteAction(BuildContext context, WidgetRef ref, String action) async {
+    final currentNoteId = ref.read(currentNoteIdProvider);
+    if (currentNoteId == null) return;
+
+    final notesRepository = ref.read(notesRepositoryProvider);
+    final note = await notesRepository.getNoteById(currentNoteId);
+
+    if (note == null) return;
+
+    switch (action) {
+      case 'rename':
+        if (context.mounted) {
+          showDialog(
+            context: context,
+            builder: (context) => RenameNoteDialog(note: note),
+          );
+        }
+        break;
+      case 'move':
+        if (context.mounted) {
+          showDialog(
+            context: context,
+            builder: (context) => MoveNoteDialog(note: note),
+          );
+        }
+        break;
+      case 'delete':
+        if (context.mounted) {
+          showDialog(
+            context: context,
+            builder: (context) => DeleteConfirmationDialog(
+              title: 'Delete Note',
+              message: 'Are you sure you want to delete "${note.title}"?',
+              onConfirm: () async {
+                await notesRepository.deleteNote(note.id);
+                ref.read(currentNoteIdProvider.notifier).state = null;
+              },
+            ),
+          );
+        }
+        break;
+    }
   }
 }

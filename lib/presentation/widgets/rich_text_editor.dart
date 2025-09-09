@@ -4,11 +4,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/editor_provider.dart' as editor_provider;
 import '../../core/theme/app_theme.dart';
-import '../providers/database_provider.dart';
-import '../dialogs/rename_note_dialog.dart';
-import '../dialogs/move_note_dialog.dart';
-import '../dialogs/delete_confirmation_dialog.dart';
-import '../../data/database/database.dart';
 
 class RichTextEditor extends ConsumerWidget {
   final int? noteId;
@@ -95,9 +90,13 @@ class RichTextEditor extends ConsumerWidget {
                   controller: editorState.controller,
                 ),
                 child: QuillEditor.basic(
-                  configurations: const QuillEditorConfigurations(
+                  configurations: QuillEditorConfigurations(
                     scrollable: true,
                     padding: EdgeInsets.zero,
+                    autoFocus: true,
+                    placeholder: 'Start writing...',
+                    readOnly: readOnly,
+                    showCursor: true,
                   ),
                 ),
               ),
@@ -120,44 +119,6 @@ class RichTextEditor extends ConsumerWidget {
       ),
       child: Row(
         children: [
-          // Note Management Menu
-          PopupMenuButton<String>(
-            icon: const Icon(Icons.more_vert, color: AppTheme.textSecondary),
-            itemBuilder: (context) => [
-              const PopupMenuItem(
-                value: 'rename',
-                child: Row(
-                  children: [
-                    Icon(Icons.edit, size: 16),
-                    SizedBox(width: 8),
-                    Text('Rename'),
-                  ],
-                ),
-              ),
-              const PopupMenuItem(
-                value: 'move',
-                child: Row(
-                  children: [
-                    Icon(Icons.folder, size: 16),
-                    SizedBox(width: 8),
-                    Text('Move to Group'),
-                  ],
-                ),
-              ),
-              const PopupMenuItem(
-                value: 'delete',
-                child: Row(
-                  children: [
-                    Icon(Icons.delete, size: 16, color: Colors.red),
-                    SizedBox(width: 8),
-                    Text('Delete', style: TextStyle(color: Colors.red)),
-                  ],
-                ),
-              ),
-            ],
-            onSelected: (value) => _handleNoteAction(context, ref, value),
-          ),
-          const SizedBox(width: 8),
           _buildToolbarButton(
             icon: Icons.format_bold,
             onPressed: () => ref.read(editor_provider.editorProvider(noteId).notifier).toggleBold(),
@@ -260,48 +221,5 @@ class RichTextEditor extends ConsumerWidget {
         ],
       ),
     );
-  }
-
-  void _handleNoteAction(BuildContext context, WidgetRef ref, String action) async {
-    if (noteId == null) return;
-
-    final notesRepository = ref.read(notesRepositoryProvider);
-    final note = await notesRepository.getNoteById(noteId!);
-
-    if (note == null) return;
-
-    switch (action) {
-      case 'rename':
-        if (context.mounted) {
-          showDialog(
-            context: context,
-            builder: (context) => RenameNoteDialog(note: note),
-          );
-        }
-        break;
-      case 'move':
-        if (context.mounted) {
-          showDialog(
-            context: context,
-            builder: (context) => MoveNoteDialog(note: note),
-          );
-        }
-        break;
-      case 'delete':
-        if (context.mounted) {
-          showDialog(
-            context: context,
-            builder: (context) => DeleteConfirmationDialog(
-              title: 'Delete Note',
-              message: 'Are you sure you want to delete "${note.title}"?',
-              onConfirm: () async {
-                await notesRepository.deleteNote(note.id);
-                ref.read(editor_provider.currentNoteIdProvider.notifier).state = null;
-              },
-            ),
-          );
-        }
-        break;
-    }
   }
 }

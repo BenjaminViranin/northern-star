@@ -57,36 +57,93 @@ class _CreateGroupDialogState extends ConsumerState<CreateGroupDialog> {
               ),
             ),
             const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              children: AppConstants.groupColors.map((color) {
-                final isSelected = color == _selectedColor;
-                return GestureDetector(
-                  onTap: () {
-                    setState(() {
-                      _selectedColor = color;
-                    });
-                  },
-                  child: Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      color: Color(int.parse(color.substring(1), radix: 16) + 0xFF000000),
-                      shape: BoxShape.circle,
-                      border: isSelected
-                          ? Border.all(color: AppTheme.primaryTeal, width: 3)
-                          : Border.all(color: AppTheme.border),
-                    ),
-                    child: isSelected
-                        ? const Icon(
-                            Icons.check,
-                            color: Colors.white,
-                            size: 20,
-                          )
-                        : null,
-                  ),
-                );
-              }).toList(),
+            // Color selection grid - 2 rows of 6 colors
+            Column(
+              children: [
+                // First row
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: AppConstants.groupColors.take(6).map((color) {
+                    final isSelected = color == _selectedColor;
+                    return GestureDetector(
+                      onTap: () {
+                        setState(() {
+                          _selectedColor = color;
+                        });
+                      },
+                      child: Container(
+                        width: 44,
+                        height: 44,
+                        margin: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: Color(int.parse(color.substring(1), radix: 16) + 0xFF000000),
+                          shape: BoxShape.circle,
+                          border:
+                              isSelected ? Border.all(color: AppTheme.primaryTeal, width: 3) : Border.all(color: AppTheme.border, width: 1),
+                          boxShadow: isSelected
+                              ? [
+                                  BoxShadow(
+                                    color: AppTheme.primaryTeal.withOpacity(0.3),
+                                    blurRadius: 8,
+                                    spreadRadius: 2,
+                                  )
+                                ]
+                              : null,
+                        ),
+                        child: isSelected
+                            ? const Icon(
+                                Icons.check,
+                                color: Colors.white,
+                                size: 20,
+                              )
+                            : null,
+                      ),
+                    );
+                  }).toList(),
+                ),
+                const SizedBox(height: 8),
+                // Second row
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: AppConstants.groupColors.skip(6).take(6).map((color) {
+                    final isSelected = color == _selectedColor;
+                    return GestureDetector(
+                      onTap: () {
+                        setState(() {
+                          _selectedColor = color;
+                        });
+                      },
+                      child: Container(
+                        width: 44,
+                        height: 44,
+                        margin: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: Color(int.parse(color.substring(1), radix: 16) + 0xFF000000),
+                          shape: BoxShape.circle,
+                          border:
+                              isSelected ? Border.all(color: AppTheme.primaryTeal, width: 3) : Border.all(color: AppTheme.border, width: 1),
+                          boxShadow: isSelected
+                              ? [
+                                  BoxShadow(
+                                    color: AppTheme.primaryTeal.withOpacity(0.3),
+                                    blurRadius: 8,
+                                    spreadRadius: 2,
+                                  )
+                                ]
+                              : null,
+                        ),
+                        child: isSelected
+                            ? const Icon(
+                                Icons.check,
+                                color: Colors.white,
+                                size: 20,
+                              )
+                            : null,
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ],
             ),
           ],
         ),

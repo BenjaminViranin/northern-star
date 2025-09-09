@@ -16,6 +16,7 @@ class EditorState {
   final bool isSaving;
   final bool hasUnsavedChanges;
   final String? error;
+  final String? lastSavedContent;
 
   EditorState({
     required this.controller,
@@ -23,6 +24,7 @@ class EditorState {
     this.isSaving = false,
     this.hasUnsavedChanges = false,
     this.error,
+    this.lastSavedContent,
   });
 
   EditorState copyWith({
@@ -31,6 +33,7 @@ class EditorState {
     bool? isSaving,
     bool? hasUnsavedChanges,
     String? error,
+    String? lastSavedContent,
   }) {
     return EditorState(
       controller: controller ?? this.controller,
@@ -38,6 +41,7 @@ class EditorState {
       isSaving: isSaving ?? this.isSaving,
       hasUnsavedChanges: hasUnsavedChanges ?? this.hasUnsavedChanges,
       error: error ?? this.error,
+      lastSavedContent: lastSavedContent ?? this.lastSavedContent,
     );
   }
 }
@@ -88,6 +92,7 @@ class EditorNotifier extends StateNotifier<EditorState> {
         state = state.copyWith(
           controller: controller,
           isLoading: false,
+          lastSavedContent: note.content,
         );
       }
     } catch (e) {
@@ -104,9 +109,13 @@ class EditorNotifier extends StateNotifier<EditorState> {
 
   void _onContentChanged() {
     if (!state.isLoading && !state.isSaving) {
-      state = state.copyWith(hasUnsavedChanges: true);
       final content = jsonEncode(state.controller.document.toDelta().toJson());
-      _contentSubject.add(content);
+      final hasChanges = content != state.lastSavedContent;
+
+      if (hasChanges) {
+        state = state.copyWith(hasUnsavedChanges: true);
+        _contentSubject.add(content);
+      }
     }
   }
 
@@ -125,6 +134,7 @@ class EditorNotifier extends StateNotifier<EditorState> {
       state = state.copyWith(
         isSaving: false,
         hasUnsavedChanges: false,
+        lastSavedContent: content,
       );
     } catch (e) {
       state = state.copyWith(
