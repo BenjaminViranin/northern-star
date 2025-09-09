@@ -7,6 +7,7 @@ import 'dart:io';
 import '../../core/theme/app_theme.dart';
 import '../../core/config/supabase_config.dart';
 import '../providers/database_provider.dart';
+import '../dialogs/auth_dialog.dart';
 
 class SettingsTab extends ConsumerWidget {
   const SettingsTab({super.key});
@@ -44,9 +45,7 @@ class SettingsTab extends ConsumerWidget {
                     style: const TextStyle(color: AppTheme.textSecondary),
                   ),
                   trailing: ElevatedButton(
-                    onPressed: () {
-                      // TODO: Implement auth flow
-                    },
+                    onPressed: () => _handleAuth(context, ref),
                     child: Text(SupabaseConfig.isAuthenticated ? 'Sign Out' : 'Sign In'),
                   ),
                 ),
@@ -260,6 +259,38 @@ class SettingsTab extends ConsumerWidget {
           SnackBar(content: Text('Import failed: $e')),
         );
       }
+    }
+  }
+
+  void _handleAuth(BuildContext context, WidgetRef ref) async {
+    if (SupabaseConfig.isAuthenticated) {
+      // Sign out
+      try {
+        await SupabaseConfig.client.auth.signOut();
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Signed out successfully'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      } catch (e) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Sign out failed: $e'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } else {
+      // Show sign in dialog
+      showDialog(
+        context: context,
+        builder: (context) => const AuthDialog(),
+      );
     }
   }
 }

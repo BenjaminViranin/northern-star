@@ -109,6 +109,9 @@ class RichTextEditor extends ConsumerWidget {
   }
 
   Widget _buildToolbar(BuildContext context, WidgetRef ref) {
+    final editorState = ref.watch(editor_provider.editorProvider(noteId));
+    final controller = editorState.controller;
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: const BoxDecoration(
@@ -121,27 +124,33 @@ class RichTextEditor extends ConsumerWidget {
         children: [
           _buildToolbarButton(
             icon: Icons.format_bold,
+            isActive: _isFormatActive(controller, Attribute.bold),
             onPressed: () => ref.read(editor_provider.editorProvider(noteId).notifier).toggleBold(),
           ),
           _buildToolbarButton(
             icon: Icons.format_italic,
+            isActive: _isFormatActive(controller, Attribute.italic),
             onPressed: () => ref.read(editor_provider.editorProvider(noteId).notifier).toggleItalic(),
           ),
           _buildToolbarButton(
             icon: Icons.format_underlined,
+            isActive: _isFormatActive(controller, Attribute.underline),
             onPressed: () => ref.read(editor_provider.editorProvider(noteId).notifier).toggleUnderline(),
           ),
           _buildToolbarButton(
             icon: Icons.format_strikethrough,
+            isActive: _isFormatActive(controller, Attribute.strikeThrough),
             onPressed: () => ref.read(editor_provider.editorProvider(noteId).notifier).toggleStrikethrough(),
           ),
           const VerticalDivider(color: AppTheme.border),
           _buildToolbarButton(
             icon: Icons.code,
+            isActive: _isFormatActive(controller, Attribute.codeBlock),
             onPressed: () => ref.read(editor_provider.editorProvider(noteId).notifier).toggleCodeBlock(),
           ),
           _buildToolbarButton(
             icon: Icons.checklist,
+            isActive: false, // Checklist doesn't have an active state
             onPressed: () => ref.read(editor_provider.editorProvider(noteId).notifier).insertCheckList(),
           ),
         ],
@@ -152,13 +161,35 @@ class RichTextEditor extends ConsumerWidget {
   Widget _buildToolbarButton({
     required IconData icon,
     required VoidCallback onPressed,
+    bool isActive = false,
   }) {
     return IconButton(
       icon: Icon(icon, size: 20),
       onPressed: onPressed,
-      color: AppTheme.textPrimary,
+      color: isActive ? AppTheme.primaryTeal : AppTheme.textPrimary,
+      style: IconButton.styleFrom(
+        backgroundColor: isActive ? AppTheme.primaryTeal.withOpacity(0.1) : null,
+      ),
       splashRadius: 20,
     );
+  }
+
+  bool _isFormatActive(QuillController controller, Attribute attribute) {
+    try {
+      final selection = controller.selection;
+      if (selection.isCollapsed) {
+        // For collapsed selection, check the style at the cursor position
+        final style = controller.getSelectionStyle();
+        return style.attributes.containsKey(attribute.key);
+      } else {
+        // For text selection, check if the attribute is applied to the selection
+        final style = controller.getSelectionStyle();
+        return style.attributes.containsKey(attribute.key);
+      }
+    } catch (e) {
+      // If there's any error checking the format, assume it's not active
+      return false;
+    }
   }
 
   Widget _buildStatusBar(editor_provider.EditorState state) {
