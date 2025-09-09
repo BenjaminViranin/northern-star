@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/app_theme.dart';
+import '../../data/database/database.dart';
 import '../providers/database_provider.dart';
 import '../providers/editor_provider.dart';
 import '../widgets/rich_text_editor.dart';
@@ -30,32 +31,44 @@ class NotesTab extends ConsumerWidget {
             children: [
               Expanded(
                 child: filteredNotes.when(
-                  data: (notes) => DropdownButtonFormField<int?>(
-                    value: notes.any((note) => note.id == currentNoteId) ? currentNoteId : null,
-                    decoration: const InputDecoration(
-                      hintText: 'Select a note...',
-                      prefixIcon: Icon(Icons.search),
-                      border: OutlineInputBorder(),
-                      contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    ),
-                    items: [
-                      const DropdownMenuItem<int?>(
-                        value: null,
-                        child: Text('Select a note...'),
+                  data: (notes) {
+                    // Ensure unique notes by ID to prevent dropdown errors
+                    final uniqueNotes = <int, Note>{};
+                    for (final note in notes) {
+                      uniqueNotes[note.id] = note;
+                    }
+                    final notesList = uniqueNotes.values.toList();
+
+                    return DropdownButtonFormField<int?>(
+                      value: notesList.isEmpty ? null : (notesList.any((note) => note.id == currentNoteId) ? currentNoteId : null),
+                      decoration: const InputDecoration(
+                        hintText: 'Select a note...',
+                        prefixIcon: Icon(Icons.search),
+                        border: OutlineInputBorder(),
+                        contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                       ),
-                      ...notes.map((note) => DropdownMenuItem<int?>(
-                            value: note.id,
-                            child: Text(
-                              note.title,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          )),
-                    ],
-                    onChanged: (value) {
-                      ref.read(currentNoteIdProvider.notifier).state = value;
-                    },
-                  ),
+                      items: notesList.isEmpty
+                          ? [
+                              const DropdownMenuItem<int?>(
+                                value: null,
+                                child: Text('No notes available'),
+                              )
+                            ]
+                          : notesList
+                              .map((note) => DropdownMenuItem<int?>(
+                                    value: note.id,
+                                    child: Text(
+                                      note.title,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ))
+                              .toList(),
+                      onChanged: (value) {
+                        ref.read(currentNoteIdProvider.notifier).state = value;
+                      },
+                    );
+                  },
                   loading: () => const LinearProgressIndicator(),
                   error: (error, stack) => Text('Error: $error'),
                 ),

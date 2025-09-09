@@ -57,10 +57,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with SingleTickerProvid
           Expanded(
             child: TabBarView(
               controller: _tabController,
-              children: const [
-                NotesTab(),
-                GroupsTab(),
-                SettingsTab(),
+              children: [
+                const NotesTab(),
+                GroupsTab(tabController: _tabController),
+                const SettingsTab(),
               ],
             ),
           ),

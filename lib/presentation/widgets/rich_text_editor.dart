@@ -296,7 +296,7 @@ class RichTextEditor extends ConsumerWidget {
               message: 'Are you sure you want to delete "${note.title}"?',
               onConfirm: () async {
                 await notesRepository.deleteNote(note.id);
-                ref.read(currentNoteIdProvider.notifier).state = null;
+                ref.read(editor_provider.currentNoteIdProvider.notifier).state = null;
               },
             ),
           );

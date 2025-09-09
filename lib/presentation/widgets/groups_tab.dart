@@ -8,7 +8,9 @@ import '../dialogs/edit_group_dialog.dart';
 import '../dialogs/delete_confirmation_dialog.dart';
 
 class GroupsTab extends ConsumerWidget {
-  const GroupsTab({super.key});
+  final TabController? tabController;
+
+  const GroupsTab({super.key, this.tabController});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -43,7 +45,7 @@ class GroupsTab extends ConsumerWidget {
                             // Set filter to this group and switch to notes tab
                             ref.read(selectedGroupProvider.notifier).state = group.id;
                             // Switch to notes tab
-                            DefaultTabController.of(context).animateTo(0);
+                            tabController?.animateTo(0);
                           },
                           child: Padding(
                             padding: const EdgeInsets.all(16),
