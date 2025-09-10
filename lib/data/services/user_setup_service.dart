@@ -1,5 +1,3 @@
-import '../../core/config/supabase_config.dart';
-import '../../core/constants/app_constants.dart';
 import '../database/database.dart';
 
 class UserSetupService {
@@ -10,8 +8,6 @@ class UserSetupService {
   /// Ensures default groups exist for the current user
   /// This is a fallback in case the database trigger fails
   Future<void> ensureDefaultGroups() async {
-    if (!SupabaseConfig.isAuthenticated) return;
-
     try {
       // Check if user already has groups
       final existingGroups = await _database.getAllGroups();
@@ -49,17 +45,15 @@ class UserSetupService {
         await _database.insertGroup(group);
       }
 
-      print('Created default groups for user');
+      // Default groups created successfully
     } catch (e) {
-      print('Failed to create default groups: $e');
-      // Don't throw - this is a fallback mechanism
+      // Failed to create default groups - this is a fallback mechanism
+      // In production, this would use a proper logging framework
     }
   }
 
   /// Sets up user data after successful authentication
   Future<void> setupUserData() async {
-    if (!SupabaseConfig.isAuthenticated) return;
-
     try {
       // Ensure default groups exist
       await ensureDefaultGroups();
@@ -69,8 +63,8 @@ class UserSetupService {
       // - Initialize user preferences
       // - etc.
     } catch (e) {
-      print('User setup failed: $e');
       // Don't throw - setup failures shouldn't prevent app usage
+      // In production, this would use a proper logging framework
     }
   }
 }
