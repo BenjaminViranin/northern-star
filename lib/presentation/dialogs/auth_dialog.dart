@@ -157,7 +157,7 @@ class _AuthDialogState extends ConsumerState<AuthDialog> {
 
     try {
       if (_isSignUp) {
-        // For sign-up, we'll handle the database trigger error gracefully
+        // For sign-up, handle the response properly
         try {
           final response = await SupabaseConfig.client.auth.signUp(
             email: email,
@@ -173,32 +173,19 @@ class _AuthDialogState extends ConsumerState<AuthDialog> {
               Navigator.of(context).pop();
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
-                  content: Text('Account created successfully! Please check your email to verify your account.'),
-                  backgroundColor: Colors.green,
-                ),
-              );
-            }
-          }
-        } catch (signUpError) {
-          // Check if it's the database trigger error
-          final errorMessage = signUpError.toString();
-          if (errorMessage.contains('Database error saving new user') || errorMessage.contains('unexpected_failure')) {
-            // This is likely the trigger error - try to create user without trigger
-            // The error occurs after user creation but during trigger execution
-            // So we'll show a success message and let the fallback handle group creation
-            if (context.mounted) {
-              Navigator.of(context).pop();
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Account created successfully! You can now sign in.'),
+                  content: Text('Account created successfully! You can now start using the app.'),
                   backgroundColor: Colors.green,
                 ),
               );
             }
           } else {
-            // Different error - rethrow it
-            rethrow;
+            setState(() {
+              _errorMessage = 'Sign-up failed: No user created';
+            });
           }
+        } catch (signUpError) {
+          // Handle sign-up errors
+          rethrow;
         }
       } else {
         final response = await SupabaseConfig.client.auth.signInWithPassword(
