@@ -40,13 +40,24 @@ class SettingsTab extends ConsumerWidget {
                     'Authentication',
                     style: TextStyle(color: AppTheme.textPrimary),
                   ),
-                  subtitle: Text(
-                    SupabaseConfig.isAuthenticated ? 'Signed in as ${SupabaseConfig.currentUser?.email ?? 'Unknown'}' : 'Not signed in',
-                    style: const TextStyle(color: AppTheme.textSecondary),
+                  subtitle: Consumer(
+                    builder: (context, ref, child) {
+                      final isAuthenticated = ref.watch(isAuthenticatedProvider);
+                      final currentUser = ref.watch(currentUserProvider);
+                      return Text(
+                        isAuthenticated ? 'Signed in as ${currentUser?.email ?? 'Unknown'}' : 'Not signed in',
+                        style: const TextStyle(color: AppTheme.textSecondary),
+                      );
+                    },
                   ),
-                  trailing: ElevatedButton(
-                    onPressed: () => _handleAuth(context, ref),
-                    child: Text(SupabaseConfig.isAuthenticated ? 'Sign Out' : 'Sign In'),
+                  trailing: Consumer(
+                    builder: (context, ref, child) {
+                      final isAuthenticated = ref.watch(isAuthenticatedProvider);
+                      return ElevatedButton(
+                        onPressed: () => _handleAuth(context, ref),
+                        child: Text(isAuthenticated ? 'Sign Out' : 'Sign In'),
+                      );
+                    },
                   ),
                 ),
               ],
@@ -263,7 +274,9 @@ class SettingsTab extends ConsumerWidget {
   }
 
   void _handleAuth(BuildContext context, WidgetRef ref) async {
-    if (SupabaseConfig.isAuthenticated) {
+    final isAuthenticated = ref.read(isAuthenticatedProvider);
+
+    if (isAuthenticated) {
       // Sign out
       try {
         await SupabaseConfig.client.auth.signOut();

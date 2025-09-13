@@ -1,10 +1,12 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../data/database/database.dart';
 import '../../data/repositories/notes_repository.dart';
 import '../../data/repositories/groups_repository.dart';
 import '../../data/services/sync_service.dart';
 import '../../data/services/user_setup_service.dart';
+import '../../core/config/supabase_config.dart';
 
 // Database instance provider
 final databaseProvider = Provider<AppDatabase>((ref) {
@@ -57,6 +59,31 @@ final selectedGroupProvider = StateProvider<int?>((ref) => null);
 
 // Search query provider
 final searchQueryProvider = StateProvider<String>((ref) => '');
+
+// Authentication state provider
+final authStateProvider = StreamProvider<User?>((ref) {
+  return SupabaseConfig.client.auth.onAuthStateChange.map((data) => data.session?.user);
+});
+
+// Convenience provider for checking if user is authenticated
+final isAuthenticatedProvider = Provider<bool>((ref) {
+  final authState = ref.watch(authStateProvider);
+  return authState.when(
+    data: (user) => user != null,
+    loading: () => false,
+    error: (_, __) => false,
+  );
+});
+
+// Current user provider
+final currentUserProvider = Provider<User?>((ref) {
+  final authState = ref.watch(authStateProvider);
+  return authState.when(
+    data: (user) => user,
+    loading: () => null,
+    error: (_, __) => null,
+  );
+});
 
 // Filtered notes provider
 final filteredNotesProvider = StreamProvider<List<Note>>((ref) {

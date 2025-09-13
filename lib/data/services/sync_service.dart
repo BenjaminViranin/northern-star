@@ -151,15 +151,29 @@ class SyncService {
   }
 
   Future<void> _createOnServer(String table, Map<String, dynamic> data, String userId) async {
-    data['user_id'] = userId;
+    // Prepare data for Supabase
+    final serverData = Map<String, dynamic>.from(data);
+    serverData['user_id'] = userId;
 
-    final response = await SupabaseConfig.client.from(table).insert(data).select().single();
+    // Remove local-only fields and IDs (let Supabase generate UUIDs)
+    serverData.remove('local_id');
+    serverData.remove('needs_sync');
+    serverData.remove('id'); // Remove local integer ID
 
-    // Update local record with server ID
-    if (table == 'notes') {
-      // TODO: Update local note with Supabase ID
-    } else if (table == 'groups') {
-      // TODO: Update local group with Supabase ID
+    // For notes, we need to handle group_id mapping
+    if (table == 'notes' && serverData.containsKey('group_id')) {
+      // For now, skip notes with group references until we implement proper ID mapping
+      // In a full implementation, we'd map local group IDs to Supabase UUIDs
+      print('⚠️ Skipping note sync - group ID mapping not implemented');
+      return;
+    }
+
+    try {
+      final response = await SupabaseConfig.client.from(table).insert(serverData).select().single();
+      print('✅ Created $table on server: ${response['id']}');
+    } catch (e) {
+      print('❌ Failed to create $table on server: $e');
+      rethrow;
     }
   }
 
@@ -173,8 +187,25 @@ class SyncService {
   }
 
   Future<void> _pullFromServer() async {
-    // TODO: Implement server pull logic
-    // This should fetch latest changes and update local database
+    final userId = SupabaseConfig.currentUser?.id;
+    if (userId == null) return;
+
+    try {
+      // Pull groups from server
+      final groupsResponse = await SupabaseConfig.client.from('groups').select().eq('user_id', userId);
+
+      print('📥 Pulled ${groupsResponse.length} groups from server');
+
+      // Pull notes from server
+      final notesResponse = await SupabaseConfig.client.from('notes').select().eq('user_id', userId);
+
+      print('📥 Pulled ${notesResponse.length} notes from server');
+
+      // For now, just log the data - full sync implementation would merge with local data
+      // This basic implementation shows that the connection works
+    } catch (e) {
+      print('❌ Failed to pull from server: $e');
+    }
   }
 
   // Manual sync trigger
