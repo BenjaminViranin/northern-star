@@ -87,6 +87,17 @@ class AppDatabase extends _$AppDatabase {
 
   Future<int> removeSyncOperation(int id) => (delete(syncQueue)..where((s) => s.id.equals(id))).go();
 
+  Future<bool> updateSyncOperationRetry(int id, int retryCount, DateTime nextRetryAt) async {
+    final result = await (update(syncQueue)..where((s) => s.id.equals(id))).write(SyncQueueCompanion(
+      retryCount: Value(retryCount),
+      nextRetryAt: Value(nextRetryAt),
+    ));
+    return result > 0;
+  }
+
+  // Local history operations
+  Future<int> addToLocalHistory(LocalHistoryCompanion history) => into(localHistory).insert(history);
+
   // Settings operations
   Future<String?> getSetting(String key) async {
     final result = await (select(appSettings)..where((s) => s.key.equals(key))).getSingleOrNull();

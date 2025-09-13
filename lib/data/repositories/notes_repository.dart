@@ -131,7 +131,18 @@ class NotesRepository {
   // Helper methods
   String _extractPlainText(String deltaJson) {
     try {
-      final delta = Delta.fromJson(jsonDecode(deltaJson));
+      final contentJson = jsonDecode(deltaJson);
+      final List<dynamic> deltaOps;
+
+      if (contentJson is Map<String, dynamic> && contentJson.containsKey('ops')) {
+        deltaOps = contentJson['ops'] as List<dynamic>;
+      } else if (contentJson is List<dynamic>) {
+        deltaOps = contentJson;
+      } else {
+        return deltaJson; // Fallback to raw content
+      }
+
+      final delta = Delta.fromJson(deltaOps);
       final document = Document.fromDelta(delta);
       return document.toPlainText();
     } catch (e) {
@@ -141,7 +152,18 @@ class NotesRepository {
 
   String _convertToMarkdown(String deltaJson) {
     try {
-      final delta = Delta.fromJson(jsonDecode(deltaJson));
+      final contentJson = jsonDecode(deltaJson);
+      final List<dynamic> deltaOps;
+
+      if (contentJson is Map<String, dynamic> && contentJson.containsKey('ops')) {
+        deltaOps = contentJson['ops'] as List<dynamic>;
+      } else if (contentJson is List<dynamic>) {
+        deltaOps = contentJson;
+      } else {
+        return deltaJson; // Fallback to raw content
+      }
+
+      final delta = Delta.fromJson(deltaOps);
       final document = Document.fromDelta(delta);
       // TODO: Implement proper Delta to Markdown conversion
       // For now, return plain text

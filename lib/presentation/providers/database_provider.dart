@@ -27,7 +27,28 @@ final groupsRepositoryProvider = Provider<GroupsRepository>((ref) {
 // Sync service provider
 final syncServiceProvider = Provider<SyncService>((ref) {
   final database = ref.watch(databaseProvider);
-  return SyncService(database);
+  final syncService = SyncService(database);
+
+  // Connect status callbacks
+  syncService.onSyncStatusChanged = (isSyncing) {
+    ref.read(syncStatusProvider.notifier).state = isSyncing ? SyncStatus.syncing : SyncStatus.idle;
+  };
+
+  syncService.onSyncErrorChanged = (error) {
+    ref.read(syncErrorProvider.notifier).state = error;
+    if (error != null) {
+      ref.read(syncStatusProvider.notifier).state = SyncStatus.error;
+    }
+  };
+
+  syncService.onLastSyncTimeChanged = (time) {
+    ref.read(lastSyncTimeProvider.notifier).state = time;
+    if (time != null) {
+      ref.read(syncStatusProvider.notifier).state = SyncStatus.success;
+    }
+  };
+
+  return syncService;
 });
 
 // User setup service provider
@@ -84,6 +105,15 @@ final currentUserProvider = Provider<User?>((ref) {
     error: (_, __) => null,
   );
 });
+
+// Sync status provider
+enum SyncStatus { idle, syncing, error, success }
+
+final syncStatusProvider = StateProvider<SyncStatus>((ref) => SyncStatus.idle);
+
+final lastSyncTimeProvider = StateProvider<DateTime?>((ref) => null);
+
+final syncErrorProvider = StateProvider<String?>((ref) => null);
 
 // Filtered notes provider
 final filteredNotesProvider = StreamProvider<List<Note>>((ref) {

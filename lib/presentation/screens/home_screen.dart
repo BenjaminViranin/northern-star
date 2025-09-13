@@ -5,6 +5,7 @@ import '../../core/theme/app_theme.dart';
 import '../widgets/notes_tab.dart';
 import '../widgets/groups_tab.dart';
 import '../widgets/settings_tab.dart';
+import '../providers/database_provider.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -20,6 +21,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with SingleTickerProvid
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
+
+    // Initialize sync service
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _initializeSyncService();
+    });
+  }
+
+  void _initializeSyncService() {
+    final syncService = ref.read(syncServiceProvider);
+    syncService.initialize().catchError((error) {
+      print('Failed to initialize sync service: $error');
+    });
   }
 
   @override

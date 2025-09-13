@@ -80,7 +80,24 @@ class EditorNotifier extends StateNotifier<EditorState> {
       final note = await repository.getNoteById(noteId!);
 
       if (note != null) {
-        final delta = Delta.fromJson(jsonDecode(note.content));
+        // Parse the content - handle both formats
+        final contentJson = jsonDecode(note.content);
+        final List<dynamic> deltaOps;
+
+        if (contentJson is Map<String, dynamic> && contentJson.containsKey('ops')) {
+          // Content is in format: {"ops": [...]}
+          deltaOps = contentJson['ops'] as List<dynamic>;
+        } else if (contentJson is List<dynamic>) {
+          // Content is already in format: [...]
+          deltaOps = contentJson;
+        } else {
+          // Fallback - create a simple text delta
+          deltaOps = [
+            {'insert': note.plainText + '\n'}
+          ];
+        }
+
+        final delta = Delta.fromJson(deltaOps);
         final controller = QuillController(
           document: Document.fromDelta(delta),
           selection: const TextSelection.collapsed(offset: 0),

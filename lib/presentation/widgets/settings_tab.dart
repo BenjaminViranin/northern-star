@@ -79,17 +79,51 @@ class SettingsTab extends ConsumerWidget {
                     'Force sync with Supabase',
                     style: TextStyle(color: AppTheme.textSecondary),
                   ),
-                  trailing: ElevatedButton(
-                    onPressed: () async {
-                      final syncService = ref.read(syncServiceProvider);
-                      await syncService.forcSync();
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Sync completed')),
-                        );
-                      }
+                  trailing: Consumer(
+                    builder: (context, ref, child) {
+                      final syncStatus = ref.watch(syncStatusProvider);
+                      final syncError = ref.watch(syncErrorProvider);
+                      final lastSyncTime = ref.watch(lastSyncTimeProvider);
+
+                      return Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          ElevatedButton(
+                            onPressed: syncStatus == SyncStatus.syncing
+                                ? null
+                                : () async {
+                                    final syncService = ref.read(syncServiceProvider);
+                                    await syncService.forceSync();
+                                  },
+                            child: syncStatus == SyncStatus.syncing
+                                ? const SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child: CircularProgressIndicator(strokeWidth: 2),
+                                  )
+                                : const Text('Sync Now'),
+                          ),
+                          const SizedBox(height: 4),
+                          if (syncError != null)
+                            Text(
+                              'Error: $syncError',
+                              style: const TextStyle(
+                                color: Colors.red,
+                                fontSize: 12,
+                              ),
+                            )
+                          else if (lastSyncTime != null)
+                            Text(
+                              'Last sync: ${_formatSyncTime(lastSyncTime)}',
+                              style: const TextStyle(
+                                color: AppTheme.textSecondary,
+                                fontSize: 12,
+                              ),
+                            ),
+                        ],
+                      );
                     },
-                    child: const Text('Sync Now'),
                   ),
                 ),
               ],
@@ -304,6 +338,21 @@ class SettingsTab extends ConsumerWidget {
         context: context,
         builder: (context) => const AuthDialog(),
       );
+    }
+  }
+
+  String _formatSyncTime(DateTime time) {
+    final now = DateTime.now();
+    final difference = now.difference(time);
+
+    if (difference.inMinutes < 1) {
+      return 'Just now';
+    } else if (difference.inMinutes < 60) {
+      return '${difference.inMinutes}m ago';
+    } else if (difference.inHours < 24) {
+      return '${difference.inHours}h ago';
+    } else {
+      return '${difference.inDays}d ago';
     }
   }
 }
