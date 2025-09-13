@@ -63,12 +63,18 @@ dependencies:
     # Debouncing
     rxdart: ^0.27.7
 
+    # Session persistence
+    shared_preferences: ^2.2.3
+
 dev_dependencies:
     flutter_test:
         sdk: flutter
 
     # Linting
     flutter_lints: ^2.0.0
+
+    # Testing
+    mockito: ^5.4.4
 
     # Code Generation
     drift_dev: ^2.14.1

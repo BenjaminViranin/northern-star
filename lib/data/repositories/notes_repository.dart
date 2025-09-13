@@ -4,6 +4,7 @@ import 'package:flutter_quill/flutter_quill.dart';
 // import 'package:uuid/uuid.dart'; // TODO: Use when implementing UUID generation
 
 import '../database/database.dart';
+import '../../core/services/markdown_converter.dart';
 // import '../models/note_model.dart'; // TODO: Use when implementing full sync
 // import '../../core/config/supabase_config.dart'; // TODO: Use when implementing full sync
 
@@ -164,10 +165,7 @@ class NotesRepository {
       }
 
       final delta = Delta.fromJson(deltaOps);
-      final document = Document.fromDelta(delta);
-      // TODO: Implement proper Delta to Markdown conversion
-      // For now, return plain text
-      return document.toPlainText();
+      return MarkdownConverter.deltaToMarkdown(delta);
     } catch (e) {
       return deltaJson; // Fallback to raw content
     }

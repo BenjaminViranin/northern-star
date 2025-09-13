@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_quill/flutter_quill.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/editor_provider.dart' as editor_provider;
+import '../providers/session_provider.dart';
 import '../../core/theme/app_theme.dart';
 
 class RichTextEditor extends ConsumerStatefulWidget {
@@ -23,9 +25,28 @@ class _RichTextEditorState extends ConsumerState<RichTextEditor> {
   QuillController? _lastController;
 
   @override
+  void initState() {
+    super.initState();
+
+    // Setup session state management
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _setupSessionManagement();
+    });
+  }
+
+  @override
   void dispose() {
     _lastController?.removeListener(_onSelectionChanged);
     super.dispose();
+  }
+
+  void _setupSessionManagement() {
+    if (widget.noteId == null) return;
+
+    // Save note change to session
+    ref.read(sessionProvider.notifier).saveLastOpenedNotes(
+          mainEditorNoteId: widget.noteId,
+        );
   }
 
   void _onSelectionChanged() {
@@ -114,18 +135,31 @@ class _RichTextEditorState extends ConsumerState<RichTextEditor> {
             ),
             child: Padding(
               padding: const EdgeInsets.all(16),
-              child: QuillProvider(
-                configurations: QuillConfigurations(
-                  controller: editorState.controller,
-                ),
-                child: QuillEditor.basic(
-                  configurations: QuillEditorConfigurations(
-                    scrollable: true,
-                    padding: EdgeInsets.zero,
-                    autoFocus: true,
-                    placeholder: 'Start writing...',
-                    readOnly: widget.readOnly,
-                    showCursor: true,
+              child: Focus(
+                onKeyEvent: (node, event) {
+                  // Handle Ctrl+V for custom paste
+                  if (event is KeyDownEvent &&
+                      event.logicalKey == LogicalKeyboardKey.keyV &&
+                      (HardwareKeyboard.instance.logicalKeysPressed.contains(LogicalKeyboardKey.control) ||
+                          HardwareKeyboard.instance.logicalKeysPressed.contains(LogicalKeyboardKey.meta))) {
+                    ref.read(editor_provider.editorProvider(widget.noteId).notifier).handlePaste();
+                    return KeyEventResult.handled;
+                  }
+                  return KeyEventResult.ignored;
+                },
+                child: QuillProvider(
+                  configurations: QuillConfigurations(
+                    controller: editorState.controller,
+                  ),
+                  child: QuillEditor.basic(
+                    configurations: QuillEditorConfigurations(
+                      scrollable: true,
+                      padding: EdgeInsets.zero,
+                      autoFocus: true,
+                      placeholder: 'Start writing...',
+                      readOnly: widget.readOnly,
+                      showCursor: true,
+                    ),
                   ),
                 ),
               ),
@@ -174,6 +208,11 @@ class _RichTextEditorState extends ConsumerState<RichTextEditor> {
           const VerticalDivider(color: AppTheme.border),
           _buildToolbarButton(
             icon: Icons.code,
+            isActive: _isFormatActive(controller, Attribute.inlineCode),
+            onPressed: () => ref.read(editor_provider.editorProvider(widget.noteId).notifier).toggleInlineCode(),
+          ),
+          _buildToolbarButton(
+            icon: Icons.code_outlined,
             isActive: _isFormatActive(controller, Attribute.codeBlock),
             onPressed: () => ref.read(editor_provider.editorProvider(widget.noteId).notifier).toggleCodeBlock(),
           ),

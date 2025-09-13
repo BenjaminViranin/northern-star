@@ -289,12 +289,57 @@ class SettingsTab extends ConsumerWidget {
         final content = await file.readAsString();
         final data = jsonDecode(content);
 
-        // TODO: Implement import logic
-        // This would involve creating groups and notes from the imported data
+        // Validate the import data structure
+        if (!_validateImportData(data)) {
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Invalid import file format')),
+            );
+          }
+          return;
+        }
+
+        // Show confirmation dialog
+        final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Import Data'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('This will import:'),
+                const SizedBox(height: 8),
+                Text('• ${(data['groups'] as List).length} groups'),
+                Text('• ${(data['notes'] as List).length} notes'),
+                const SizedBox(height: 16),
+                const Text(
+                  'Existing data will not be deleted. Duplicate groups will be renamed.',
+                  style: TextStyle(fontSize: 12, color: Colors.grey),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                child: const Text('Import'),
+              ),
+            ],
+          ),
+        );
+
+        if (confirmed != true) return;
+
+        // Perform the import
+        await _performImport(data, ref);
 
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Import feature coming soon')),
+            const SnackBar(content: Text('Data imported successfully')),
           );
         }
       }
@@ -302,6 +347,66 @@ class SettingsTab extends ConsumerWidget {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Import failed: $e')),
+        );
+      }
+    }
+  }
+
+  bool _validateImportData(Map<String, dynamic> data) {
+    return data.containsKey('version') &&
+        data.containsKey('groups') &&
+        data.containsKey('notes') &&
+        data['groups'] is List &&
+        data['notes'] is List;
+  }
+
+  Future<void> _performImport(Map<String, dynamic> data, WidgetRef ref) async {
+    final groupsRepository = ref.read(groupsRepositoryProvider);
+    final notesRepository = ref.read(notesRepositoryProvider);
+
+    // Map to track old group IDs to new group IDs
+    final groupIdMap = <int, int>{};
+
+    // Import groups first
+    final importGroups = data['groups'] as List;
+    for (final groupData in importGroups) {
+      final oldId = groupData['id'] as int;
+      final name = groupData['name'] as String;
+      final color = groupData['color'] as String;
+
+      // Check if group with same name already exists
+      final existingGroups = await groupsRepository.getAllGroups();
+      var finalName = name;
+      var counter = 1;
+
+      while (existingGroups.any((g) => g.name == finalName)) {
+        finalName = '$name ($counter)';
+        counter++;
+      }
+
+      // Create the group
+      final newGroupId = await groupsRepository.createGroup(
+        name: finalName,
+        color: color,
+      );
+
+      groupIdMap[oldId] = newGroupId;
+    }
+
+    // Import notes
+    final importNotes = data['notes'] as List;
+    for (final noteData in importNotes) {
+      final title = noteData['title'] as String;
+      final content = noteData['content'] as String;
+      final oldGroupId = noteData['group_id'] as int;
+
+      // Map to new group ID
+      final newGroupId = groupIdMap[oldGroupId];
+      if (newGroupId != null) {
+        await notesRepository.createNote(
+          title: title,
+          content: content,
+          groupId: newGroupId,
         );
       }
     }

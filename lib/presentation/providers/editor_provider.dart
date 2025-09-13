@@ -1,11 +1,13 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_quill/flutter_quill.dart';
 import 'package:rxdart/rxdart.dart';
 
 import '../../core/constants/app_constants.dart';
+import '../../core/services/markdown_converter.dart';
 // import '../../data/database/database.dart'; // TODO: Use when implementing database operations
 import 'database_provider.dart';
 
@@ -208,9 +210,51 @@ class EditorNotifier extends StateNotifier<EditorState> {
     state.controller.formatSelection(Attribute.codeBlock);
   }
 
+  void toggleInlineCode() {
+    // final selection = state.controller.selection; // TODO: Use when implementing selection-based formatting
+    state.controller.formatSelection(Attribute.inlineCode);
+  }
+
   void insertCheckList() {
     // final selection = state.controller.selection; // TODO: Use when implementing selection-based formatting
     state.controller.formatSelection(Attribute.unchecked);
+  }
+
+  /// Handles paste events with Markdown auto-parsing
+  Future<void> handlePaste() async {
+    try {
+      final clipboardData = await Clipboard.getData(Clipboard.kTextPlain);
+      if (clipboardData?.text != null) {
+        final pastedText = clipboardData!.text!;
+
+        // Check if the pasted content is Markdown
+        if (MarkdownConverter.isMarkdown(pastedText)) {
+          // Convert Markdown to Delta and insert
+          final delta = MarkdownConverter.markdownToDelta(pastedText);
+          final selection = state.controller.selection;
+
+          // Replace the current selection with the converted content
+          state.controller.replaceText(
+            selection.start,
+            selection.end - selection.start,
+            delta,
+            TextSelection.collapsed(offset: selection.start + delta.length),
+          );
+        } else {
+          // Insert as plain text
+          final selection = state.controller.selection;
+          state.controller.replaceText(
+            selection.start,
+            selection.end - selection.start,
+            pastedText,
+            TextSelection.collapsed(offset: selection.start + pastedText.length),
+          );
+        }
+      }
+    } catch (e) {
+      // If paste fails, fall back to default behavior
+      print('Paste failed: $e');
+    }
   }
 }
 

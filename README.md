@@ -12,6 +12,7 @@ A powerful, offline-first note-taking application built with Flutter for Android
 -   **Group Organization**: Organize notes into customizable colored groups
 -   **Advanced Search**: Full-text search across note titles and content
 -   **Auto-save**: 300ms debounced auto-save with visual indicators
+-   **Session Persistence**: Automatically restores app state when reopened
 
 ### 📱 Platform Support
 
@@ -32,6 +33,14 @@ A powerful, offline-first note-taking application built with Flutter for Android
 -   **Conflict Resolution**: Last-write-wins with local history backup
 -   **Soft Delete**: 30-day retention before permanent deletion
 -   **Export/Import**: JSON backup and restore functionality
+
+### 🔄 Session Persistence
+
+-   **Window State**: Remembers window size, position, and maximized state (Windows)
+-   **Last Opened Notes**: Restores the last note being edited and cursor position
+-   **Split View State**: Remembers which notes were open in each pane
+-   **UI State**: Restores selected tab, search query, and group filter
+-   **Seamless Experience**: Closing and reopening feels like continuing from where you left off
 
 ## Prerequisites
 
