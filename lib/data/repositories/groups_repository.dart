@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'package:drift/drift.dart';
 
 import '../database/database.dart';
-// import '../../core/constants/app_constants.dart'; // TODO: Use when implementing constants
+import '../../core/constants/app_constants.dart';
 
 class GroupsRepository {
   final AppDatabase _database;
@@ -21,6 +21,27 @@ class GroupsRepository {
   Future<Group?> getUncategorizedGroup() async {
     final groups = await getAllGroups();
     return groups.where((g) => g.name == 'Uncategorized').firstOrNull;
+  }
+
+  /// Get available group colors from constants
+  List<String> getAvailableColors() {
+    return AppConstants.groupColors;
+  }
+
+  /// Get next available color for a new group
+  Future<String> getNextAvailableColor() async {
+    final existingGroups = await getAllGroups();
+    final usedColors = existingGroups.map((g) => g.color).toSet();
+
+    // Find first unused color
+    for (final color in AppConstants.groupColors) {
+      if (!usedColors.contains(color)) {
+        return color;
+      }
+    }
+
+    // If all colors are used, return the first one
+    return AppConstants.groupColors.first;
   }
 
   Future<int> createGroup({

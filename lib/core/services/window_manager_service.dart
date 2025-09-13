@@ -16,15 +16,19 @@ class WindowManagerService {
   static Future<void> initialize() async {
     if (!Platform.isWindows) return;
 
-    // For now, we'll use a simple approach since window_manager package
-    // would require additional setup. In a real implementation, you would
-    // use the window_manager package to control window properties.
+    // Initialize mock window state for development
+    final windowState = SessionPersistenceService.restoreWindowState();
+    if (windowState != null) {
+      MockWindowState.currentSize = windowState.size;
+      MockWindowState.currentPosition = windowState.position;
+      MockWindowState.isMaximized = windowState.isMaximized;
+    }
 
-    // This is a placeholder for window management functionality
-    // In a production app, you would:
-    // 1. Add window_manager dependency
-    // 2. Initialize window manager
-    // 3. Restore window size, position, and state
+    // In a production app with window_manager package, you would:
+    // 1. await windowManager.ensureInitialized();
+    // 2. await windowManager.setSize(windowState?.size ?? getDefaultWindowSize());
+    // 3. await windowManager.setPosition(windowState?.position ?? getDefaultWindowPosition());
+    // 4. if (windowState?.isMaximized == true) await windowManager.maximize();
   }
 
   /// Save current window state
@@ -48,6 +52,11 @@ class WindowManagerService {
 
     final windowState = SessionPersistenceService.restoreWindowState();
     if (windowState == null) return;
+
+    // Update mock state
+    MockWindowState.currentSize = windowState.size;
+    MockWindowState.currentPosition = windowState.position;
+    MockWindowState.isMaximized = windowState.isMaximized;
 
     // In a real implementation with window_manager package:
     // await windowManager.setSize(windowState.size);
@@ -122,11 +131,10 @@ class _WindowStateManagerState extends ConsumerState<WindowStateManager> with Wi
   void _saveCurrentWindowState() {
     if (!WindowManagerService.shouldSaveWindowState()) return;
 
-    // In a real implementation, you would get the actual window properties
-    // For now, we'll save default values
-    final size = WindowManagerService.getDefaultWindowSize();
-    final position = WindowManagerService.getDefaultWindowPosition();
-    const isMaximized = false;
+    // Use mock window state for development
+    final size = MockWindowState.currentSize;
+    final position = MockWindowState.currentPosition;
+    final isMaximized = MockWindowState.isMaximized;
 
     WindowManagerService.saveWindowState(
       size: size,

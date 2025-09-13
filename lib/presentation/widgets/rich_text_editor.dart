@@ -123,51 +123,56 @@ class _RichTextEditorState extends ConsumerState<RichTextEditor> {
       controller.addListener(_onSelectionChanged);
     }
 
-    return Column(
-      children: [
-        if (!widget.readOnly) _buildToolbar(context, ref),
-        Expanded(
-          child: Container(
-            decoration: BoxDecoration(
-              color: AppTheme.surfaceDark,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: AppTheme.border),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Focus(
-                onKeyEvent: (node, event) {
-                  // Handle Ctrl+V for custom paste
-                  if (event is KeyDownEvent &&
-                      event.logicalKey == LogicalKeyboardKey.keyV &&
-                      (HardwareKeyboard.instance.logicalKeysPressed.contains(LogicalKeyboardKey.control) ||
-                          HardwareKeyboard.instance.logicalKeysPressed.contains(LogicalKeyboardKey.meta))) {
-                    ref.read(editor_provider.editorProvider(widget.noteId).notifier).handlePaste();
-                    return KeyEventResult.handled;
-                  }
-                  return KeyEventResult.ignored;
-                },
-                child: QuillProvider(
-                  configurations: QuillConfigurations(
-                    controller: editorState.controller,
-                  ),
-                  child: QuillEditor.basic(
-                    configurations: QuillEditorConfigurations(
-                      scrollable: true,
-                      padding: EdgeInsets.zero,
-                      autoFocus: true,
-                      placeholder: 'Start writing...',
-                      readOnly: widget.readOnly,
-                      showCursor: true,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return Column(
+          children: [
+            if (!widget.readOnly) _buildToolbar(context, ref),
+            Expanded(
+              child: Container(
+                width: constraints.maxWidth,
+                decoration: BoxDecoration(
+                  color: AppTheme.surfaceDark,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: AppTheme.border),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Focus(
+                    onKeyEvent: (node, event) {
+                      // Handle Ctrl+V for custom paste
+                      if (event is KeyDownEvent &&
+                          event.logicalKey == LogicalKeyboardKey.keyV &&
+                          (HardwareKeyboard.instance.logicalKeysPressed.contains(LogicalKeyboardKey.control) ||
+                              HardwareKeyboard.instance.logicalKeysPressed.contains(LogicalKeyboardKey.meta))) {
+                        ref.read(editor_provider.editorProvider(widget.noteId).notifier).handlePaste();
+                        return KeyEventResult.handled;
+                      }
+                      return KeyEventResult.ignored;
+                    },
+                    child: QuillProvider(
+                      configurations: QuillConfigurations(
+                        controller: editorState.controller,
+                      ),
+                      child: QuillEditor.basic(
+                        configurations: QuillEditorConfigurations(
+                          scrollable: true,
+                          padding: EdgeInsets.zero,
+                          autoFocus: true,
+                          placeholder: 'Start writing...',
+                          readOnly: widget.readOnly,
+                          showCursor: true,
+                        ),
+                      ),
                     ),
                   ),
                 ),
               ),
             ),
-          ),
-        ),
-        if (editorState.isSaving || editorState.hasUnsavedChanges) _buildStatusBar(editorState),
-      ],
+            if (editorState.isSaving || editorState.hasUnsavedChanges) _buildStatusBar(editorState),
+          ],
+        );
+      },
     );
   }
 

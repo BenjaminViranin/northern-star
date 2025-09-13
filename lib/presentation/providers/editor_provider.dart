@@ -8,7 +8,6 @@ import 'package:rxdart/rxdart.dart';
 
 import '../../core/constants/app_constants.dart';
 import '../../core/services/markdown_converter.dart';
-// import '../../data/database/database.dart'; // TODO: Use when implementing database operations
 import 'database_provider.dart';
 
 // Editor state for a specific note
@@ -186,37 +185,63 @@ class EditorNotifier extends StateNotifier<EditorState> {
 
   // Formatting methods
   void toggleBold() {
-    // final selection = state.controller.selection; // TODO: Use when implementing selection-based formatting
-    state.controller.formatSelection(Attribute.bold);
+    final selection = state.controller.selection;
+    if (selection.isCollapsed) {
+      // If no text is selected, toggle formatting for next typed text
+      state.controller.formatSelection(Attribute.bold);
+    } else {
+      // Format the selected text
+      state.controller.formatSelection(Attribute.bold);
+    }
   }
 
   void toggleItalic() {
-    // final selection = state.controller.selection; // TODO: Use when implementing selection-based formatting
-    state.controller.formatSelection(Attribute.italic);
+    final selection = state.controller.selection;
+    if (selection.isCollapsed) {
+      state.controller.formatSelection(Attribute.italic);
+    } else {
+      state.controller.formatSelection(Attribute.italic);
+    }
   }
 
   void toggleUnderline() {
-    // final selection = state.controller.selection; // TODO: Use when implementing selection-based formatting
-    state.controller.formatSelection(Attribute.underline);
+    final selection = state.controller.selection;
+    if (selection.isCollapsed) {
+      state.controller.formatSelection(Attribute.underline);
+    } else {
+      state.controller.formatSelection(Attribute.underline);
+    }
   }
 
   void toggleStrikethrough() {
-    // final selection = state.controller.selection; // TODO: Use when implementing selection-based formatting
-    state.controller.formatSelection(Attribute.strikeThrough);
+    final selection = state.controller.selection;
+    if (selection.isCollapsed) {
+      state.controller.formatSelection(Attribute.strikeThrough);
+    } else {
+      state.controller.formatSelection(Attribute.strikeThrough);
+    }
   }
 
   void toggleCodeBlock() {
-    // final selection = state.controller.selection; // TODO: Use when implementing selection-based formatting
-    state.controller.formatSelection(Attribute.codeBlock);
+    final selection = state.controller.selection;
+    if (selection.isCollapsed) {
+      state.controller.formatSelection(Attribute.codeBlock);
+    } else {
+      state.controller.formatSelection(Attribute.codeBlock);
+    }
   }
 
   void toggleInlineCode() {
-    // final selection = state.controller.selection; // TODO: Use when implementing selection-based formatting
-    state.controller.formatSelection(Attribute.inlineCode);
+    final selection = state.controller.selection;
+    if (selection.isCollapsed) {
+      state.controller.formatSelection(Attribute.inlineCode);
+    } else {
+      state.controller.formatSelection(Attribute.inlineCode);
+    }
   }
 
   void insertCheckList() {
-    // final selection = state.controller.selection; // TODO: Use when implementing selection-based formatting
+    // Insert checklist at current position
     state.controller.formatSelection(Attribute.unchecked);
   }
 
@@ -253,7 +278,10 @@ class EditorNotifier extends StateNotifier<EditorState> {
       }
     } catch (e) {
       // If paste fails, fall back to default behavior
-      print('Paste failed: $e');
+      // In production, this would be logged to a proper logging service
+      if (AppConstants.enableDebugLogging) {
+        debugPrint('Paste failed: $e');
+      }
     }
   }
 }

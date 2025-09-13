@@ -1,16 +1,14 @@
 import 'dart:convert';
 import 'package:drift/drift.dart';
 import 'package:flutter_quill/flutter_quill.dart';
-// import 'package:uuid/uuid.dart'; // TODO: Use when implementing UUID generation
+import 'package:uuid/uuid.dart';
 
 import '../database/database.dart';
 import '../../core/services/markdown_converter.dart';
-// import '../models/note_model.dart'; // TODO: Use when implementing full sync
-// import '../../core/config/supabase_config.dart'; // TODO: Use when implementing full sync
 
 class NotesRepository {
   final AppDatabase _database;
-  // final _uuid = const Uuid(); // TODO: Use when implementing UUID generation
+  final _uuid = const Uuid();
 
   NotesRepository(this._database);
 
@@ -49,8 +47,9 @@ class NotesRepository {
 
     final id = await _database.insertNote(note);
 
-    // Add to sync queue
+    // Add to sync queue with client UUID for conflict resolution
     await _addToSyncQueue('create', 'notes', id, {
+      'client_id': _uuid.v4(), // Unique client ID for sync
       'title': title,
       'content': content,
       'markdown': markdown,
