@@ -4,10 +4,82 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/services/keyboard_shortcuts_service.dart';
 import '../providers/session_provider.dart';
-import '../widgets/notes_tab.dart';
-import '../widgets/groups_tab.dart';
-import '../widgets/settings_tab.dart';
+import '../widgets/sidebar_navigation.dart';
+import '../widgets/main_content_area.dart';
 import '../providers/database_provider.dart';
+
+// Navigation state provider
+final navigationStateProvider = StateNotifierProvider<NavigationStateNotifier, NavigationState>((ref) {
+  return NavigationStateNotifier();
+});
+
+enum NavigationSection { notes, groups, settings }
+
+class NavigationState {
+  final NavigationSection selectedSection;
+  final Map<int, bool> groupExpandedState;
+  final String searchQuery;
+  final int? selectedGroupId;
+  final int? selectedNoteId;
+
+  const NavigationState({
+    this.selectedSection = NavigationSection.notes,
+    this.groupExpandedState = const {},
+    this.searchQuery = '',
+    this.selectedGroupId,
+    this.selectedNoteId,
+  });
+
+  NavigationState copyWith({
+    NavigationSection? selectedSection,
+    Map<int, bool>? groupExpandedState,
+    String? searchQuery,
+    int? selectedGroupId,
+    int? selectedNoteId,
+  }) {
+    return NavigationState(
+      selectedSection: selectedSection ?? this.selectedSection,
+      groupExpandedState: groupExpandedState ?? this.groupExpandedState,
+      searchQuery: searchQuery ?? this.searchQuery,
+      selectedGroupId: selectedGroupId ?? this.selectedGroupId,
+      selectedNoteId: selectedNoteId ?? this.selectedNoteId,
+    );
+  }
+}
+
+class NavigationStateNotifier extends StateNotifier<NavigationState> {
+  NavigationStateNotifier() : super(const NavigationState());
+
+  void selectSection(NavigationSection section) {
+    state = state.copyWith(selectedSection: section);
+  }
+
+  void toggleGroupExpanded(int groupId) {
+    final newExpandedState = Map<int, bool>.from(state.groupExpandedState);
+    newExpandedState[groupId] = !(newExpandedState[groupId] ?? true);
+    state = state.copyWith(groupExpandedState: newExpandedState);
+  }
+
+  void setSearchQuery(String query) {
+    state = state.copyWith(searchQuery: query);
+  }
+
+  void selectGroup(int? groupId) {
+    state = state.copyWith(selectedGroupId: groupId);
+  }
+
+  void selectNote(int? noteId) {
+    state = state.copyWith(selectedNoteId: noteId);
+  }
+
+  bool isGroupExpanded(int groupId) {
+    return state.groupExpandedState[groupId] ?? true;
+  }
+
+  void restoreFromSession(NavigationState sessionState) {
+    state = sessionState;
+  }
+}
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -16,16 +88,10 @@ class HomeScreen extends ConsumerStatefulWidget {
   ConsumerState<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends ConsumerState<HomeScreen> with SingleTickerProviderStateMixin {
-  late TabController _tabController;
-
+class _HomeScreenState extends ConsumerState<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
-
-    // Listen to tab changes to save UI state
-    _tabController.addListener(_onTabChanged);
 
     // Initialize services and restore session
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -37,41 +103,34 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with SingleTickerProvid
     // Initialize sync service
     final syncService = ref.read(syncServiceProvider);
     syncService.initialize().catchError((error) {
-      print('Failed to initialize sync service: $error');
+      if (mounted) {
+        debugPrint('Failed to initialize sync service: $error');
+      }
     });
 
     // Initialize and restore session
     final sessionNotifier = ref.read(sessionProvider.notifier);
     await sessionNotifier.initializeSession();
 
-    // Restore UI state if available
+    // Restore navigation state if available
     final sessionState = ref.read(sessionProvider);
-    if (sessionState.uiState != null) {
+    if (sessionState.uiState != null && mounted) {
       final uiState = sessionState.uiState!;
+      final navigationNotifier = ref.read(navigationStateProvider.notifier);
 
-      // Restore tab selection
+      // Restore navigation section
       if (uiState.selectedTabIndex >= 0 && uiState.selectedTabIndex < 3) {
-        _tabController.animateTo(uiState.selectedTabIndex);
+        final sections = [NavigationSection.notes, NavigationSection.groups, NavigationSection.settings];
+        navigationNotifier.selectSection(sections[uiState.selectedTabIndex]);
       }
-    }
-  }
 
-  @override
-  void dispose() {
-    _tabController.removeListener(_onTabChanged);
-    _tabController.dispose();
-    super.dispose();
-  }
-
-  void _onTabChanged() {
-    if (_tabController.indexIsChanging) {
-      // Save UI state when tab changes
-      final sessionNotifier = ref.read(sessionProvider.notifier);
-      sessionNotifier.saveUIState(
-        selectedTabIndex: _tabController.index,
-        searchQuery: null, // Will be updated by individual tabs
-        selectedGroupId: null, // Will be updated by individual tabs
-      );
+      // Restore search query and selected group
+      if (uiState.searchQuery != null) {
+        navigationNotifier.setSearchQuery(uiState.searchQuery!);
+      }
+      if (uiState.selectedGroupId != null) {
+        navigationNotifier.selectGroup(uiState.selectedGroupId);
+      }
     }
   }
 
@@ -85,37 +144,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with SingleTickerProvid
           autofocus: true,
           child: Scaffold(
             backgroundColor: AppTheme.backgroundDark,
-            body: Column(
+            body: Row(
               children: [
-                // Tab Bar
-                Container(
-                  padding: const EdgeInsets.fromLTRB(24, 16, 24, 8),
-                  decoration: const BoxDecoration(
-                    color: AppTheme.surfaceDark,
-                    border: Border(
-                      bottom: BorderSide(color: AppTheme.border),
-                    ),
-                  ),
-                  child: TabBar(
-                    controller: _tabController,
-                    tabs: const [
-                      Tab(icon: Icon(Icons.note, size: 28)),
-                      Tab(icon: Icon(Icons.folder, size: 28)),
-                      Tab(icon: Icon(Icons.settings, size: 28)),
-                    ],
-                  ),
-                ),
+                // Left Sidebar
+                const SidebarNavigation(),
 
-                // Tab Content
-                Expanded(
-                  child: TabBarView(
-                    controller: _tabController,
-                    children: [
-                      const NotesTab(),
-                      GroupsTab(tabController: _tabController),
-                      const SettingsTab(),
-                    ],
-                  ),
+                // Main Content Area
+                const Expanded(
+                  child: MainContentArea(),
                 ),
               ],
             ),

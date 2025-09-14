@@ -69,6 +69,11 @@ final notesByGroupProvider = StreamProvider.family<List<Note>, int>((ref, groupI
   return Stream.periodic(const Duration(seconds: 1)).asyncMap((_) => repository.getNotesByGroup(groupId));
 });
 
+final noteByIdProvider = FutureProvider.family<Note?, int>((ref, noteId) {
+  final repository = ref.watch(notesRepositoryProvider);
+  return repository.getNoteById(noteId);
+});
+
 // Groups state providers
 final groupsProvider = StreamProvider<List<Group>>((ref) {
   final repository = ref.watch(groupsRepositoryProvider);
