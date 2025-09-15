@@ -138,35 +138,41 @@ class SidebarNavigation extends ConsumerWidget {
       child: Row(
         children: [
           if (navigationState.selectedSection == NavigationSection.notes) ...[
-            _buildActionButton(
-              context: context,
-              icon: Icons.add,
-              label: 'New Note',
-              onTap: () => _showCreateNoteDialog(context, ref),
+            Expanded(
+              child: _buildActionButton(
+                context: context,
+                icon: Icons.add,
+                label: 'New Note',
+                onTap: () => _showCreateNoteDialog(context, ref),
+              ),
             ),
-            const SizedBox(width: 8),
-            _buildActionButton(
-              context: context,
-              icon: Icons.create_new_folder,
-              label: 'New Group',
-              onTap: () => _showCreateGroupDialog(context, ref),
+            const SizedBox(width: 6),
+            Expanded(
+              child: _buildActionButton(
+                context: context,
+                icon: Icons.create_new_folder,
+                label: 'New Group',
+                onTap: () => _showCreateGroupDialog(context, ref),
+              ),
             ),
-            const SizedBox(width: 8),
-            _buildActionButton(
-              context: context,
-              icon: Icons.view_column,
-              label: 'Split View',
-              onTap: () => _openSplitView(context),
+            const SizedBox(width: 6),
+            Expanded(
+              child: _buildActionButton(
+                context: context,
+                icon: Icons.view_column,
+                label: 'Split View',
+                onTap: () => _openSplitView(context),
+              ),
             ),
-            const Spacer(),
           ] else if (navigationState.selectedSection == NavigationSection.groups) ...[
-            _buildActionButton(
-              context: context,
-              icon: Icons.create_new_folder,
-              label: 'New Group',
-              onTap: () => _showCreateGroupDialog(context, ref),
+            Expanded(
+              child: _buildActionButton(
+                context: context,
+                icon: Icons.create_new_folder,
+                label: 'New Group',
+                onTap: () => _showCreateGroupDialog(context, ref),
+              ),
             ),
-            const Spacer(),
           ],
         ],
       ),
@@ -188,7 +194,8 @@ class SidebarNavigation extends ConsumerWidget {
           borderRadius: BorderRadius.circular(6),
           onTap: onTap,
           child: Container(
-            padding: const EdgeInsets.all(8),
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
             child: Icon(icon, size: 18, color: AppTheme.textPrimary),
           ),
         ),
