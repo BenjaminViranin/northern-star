@@ -57,16 +57,29 @@ class EditorNotifier extends StateNotifier<EditorState> {
 
   EditorNotifier(this.ref, this.noteId)
       : super(EditorState(
-          controller: QuillController.basic(),
+          controller: _createBasicController(),
         )) {
+    // Add listener to basic controller
+    state.controller.addListener(_onContentChanged);
     _initializeEditor();
     _setupAutosave();
+  }
+
+  /// Creates a basic controller with proper document initialization
+  static QuillController _createBasicController() {
+    final document = Document();
+    document.insert(0, '\n'); // Ensure document has content for cursor
+    return QuillController(
+      document: document,
+      selection: const TextSelection.collapsed(offset: 0),
+    );
   }
 
   @override
   void dispose() {
     _debounceSubscription?.cancel();
     _contentSubject.close();
+    state.controller.removeListener(_onContentChanged);
     state.controller.dispose();
     super.dispose();
   }
@@ -99,8 +112,15 @@ class EditorNotifier extends StateNotifier<EditorState> {
         }
 
         final delta = Delta.fromJson(deltaOps);
+        final document = Document.fromDelta(delta);
+
+        // Ensure document has at least one character for proper cursor positioning
+        if (document.length <= 1) {
+          document.insert(0, '\n');
+        }
+
         final controller = QuillController(
-          document: Document.fromDelta(delta),
+          document: document,
           selection: const TextSelection.collapsed(offset: 0),
         );
 
@@ -130,9 +150,13 @@ class EditorNotifier extends StateNotifier<EditorState> {
       final content = jsonEncode(state.controller.document.toDelta().toJson());
       final hasChanges = content != state.lastSavedContent;
 
+      print('📝 Content changed - Note ID: $noteId, Has changes: $hasChanges');
+      print('📝 New content length: ${content.length}');
+
       if (hasChanges) {
         state = state.copyWith(hasUnsavedChanges: true);
         _contentSubject.add(content);
+        print('📝 Added to autosave queue');
       }
     }
   }
@@ -140,6 +164,7 @@ class EditorNotifier extends StateNotifier<EditorState> {
   Future<void> _saveContent(String content) async {
     if (noteId == null) return;
 
+    print('💾 Saving content for note $noteId...');
     state = state.copyWith(isSaving: true);
 
     try {
@@ -149,12 +174,14 @@ class EditorNotifier extends StateNotifier<EditorState> {
         content: content,
       );
 
+      print('✅ Content saved successfully for note $noteId');
       state = state.copyWith(
         isSaving: false,
         hasUnsavedChanges: false,
         lastSavedContent: content,
       );
     } catch (e) {
+      print('❌ Failed to save content for note $noteId: $e');
       state = state.copyWith(
         isSaving: false,
         error: e.toString(),

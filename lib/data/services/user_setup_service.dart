@@ -1,3 +1,5 @@
+import 'dart:convert';
+import 'package:drift/drift.dart';
 import '../database/database.dart';
 
 class UserSetupService {
@@ -17,32 +19,50 @@ class UserSetupService {
         return;
       }
 
-      // Create default groups
+      // Create default groups with sync enabled
       final defaultGroups = [
         GroupsCompanion.insert(
           name: 'Work',
           color: '#14b8a6',
+          needsSync: const Value(true),
         ),
         GroupsCompanion.insert(
           name: 'Personal',
           color: '#0d9488',
+          needsSync: const Value(true),
         ),
         GroupsCompanion.insert(
           name: 'Ideas',
           color: '#0f766e',
+          needsSync: const Value(true),
         ),
         GroupsCompanion.insert(
           name: 'Tasks',
           color: '#115e59',
+          needsSync: const Value(true),
         ),
         GroupsCompanion.insert(
           name: 'Uncategorized',
           color: '#134e4a',
+          needsSync: const Value(true),
         ),
       ];
 
       for (final group in defaultGroups) {
-        await _database.insertGroup(group);
+        final groupId = await _database.insertGroup(group);
+
+        // Add to sync queue
+        await _database.addToSyncQueue(SyncQueueCompanion(
+          operation: const Value('create'),
+          entityTable: const Value('groups'),
+          localId: Value(groupId),
+          data: Value(jsonEncode({
+            'name': group.name.value,
+            'color': group.color.value,
+            'created_at': DateTime.now().toIso8601String(),
+            'updated_at': DateTime.now().toIso8601String(),
+          })),
+        ));
       }
 
       // Default groups created successfully

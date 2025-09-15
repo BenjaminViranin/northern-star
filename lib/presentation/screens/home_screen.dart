@@ -100,13 +100,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   void _initializeServices() async {
-    // Initialize sync service
-    final syncService = ref.read(syncServiceProvider);
-    syncService.initialize().catchError((error) {
-      if (mounted) {
-        debugPrint('Failed to initialize sync service: $error');
-      }
-    });
+    // Initialize sync service manager (handles auth state changes automatically)
+    ref.read(syncServiceManagerProvider);
 
     // Initialize and restore session
     final sessionNotifier = ref.read(sessionProvider.notifier);

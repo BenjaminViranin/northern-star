@@ -23,6 +23,7 @@ class RichTextEditor extends ConsumerStatefulWidget {
 
 class _RichTextEditorState extends ConsumerState<RichTextEditor> {
   QuillController? _lastController;
+  final FocusNode _focusNode = FocusNode();
 
   @override
   void initState() {
@@ -31,12 +32,17 @@ class _RichTextEditorState extends ConsumerState<RichTextEditor> {
     // Setup session state management
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _setupSessionManagement();
+      // Auto-focus if not read-only
+      if (!widget.readOnly) {
+        _focusNode.requestFocus();
+      }
     });
   }
 
   @override
   void dispose() {
     _lastController?.removeListener(_onSelectionChanged);
+    _focusNode.dispose();
     super.dispose();
   }
 
@@ -127,30 +133,46 @@ class _RichTextEditorState extends ConsumerState<RichTextEditor> {
       children: [
         if (!widget.readOnly) _buildToolbar(context, ref),
         Expanded(
-          child: Focus(
-            onKeyEvent: (node, event) {
-              // Handle Ctrl+V for custom paste
-              if (event is KeyDownEvent &&
-                  event.logicalKey == LogicalKeyboardKey.keyV &&
-                  (HardwareKeyboard.instance.logicalKeysPressed.contains(LogicalKeyboardKey.control) ||
-                      HardwareKeyboard.instance.logicalKeysPressed.contains(LogicalKeyboardKey.meta))) {
-                ref.read(editor_provider.editorProvider(widget.noteId).notifier).handlePaste();
-                return KeyEventResult.handled;
-              }
-              return KeyEventResult.ignored;
-            },
-            child: QuillProvider(
-              configurations: QuillConfigurations(
-                controller: editorState.controller,
-              ),
-              child: QuillEditor.basic(
-                configurations: QuillEditorConfigurations(
-                  scrollable: true,
-                  padding: const EdgeInsets.all(16),
-                  autoFocus: !widget.readOnly,
-                  placeholder: 'Start writing...',
-                  readOnly: widget.readOnly,
-                  showCursor: true,
+          child: Container(
+            decoration: BoxDecoration(
+              border: Border.all(color: Colors.grey.withOpacity(0.3)),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: GestureDetector(
+              onTapDown: (details) {
+                if (!widget.readOnly) {
+                  _focusNode.requestFocus();
+                  // Move cursor to end if document is empty or very short
+                  final doc = editorState.controller.document;
+                  if (doc.length <= 1) {
+                    editorState.controller.moveCursorToEnd();
+                  }
+                }
+              },
+              child: QuillProvider(
+                configurations: QuillConfigurations(
+                  controller: editorState.controller,
+                ),
+                child: QuillEditor.basic(
+                  focusNode: _focusNode,
+                  configurations: QuillEditorConfigurations(
+                    scrollable: true,
+                    padding: const EdgeInsets.all(16),
+                    autoFocus: !widget.readOnly,
+                    placeholder: 'Start writing...',
+                    readOnly: widget.readOnly,
+                    showCursor: true,
+                    enableInteractiveSelection: true,
+                    expands: false,
+                    keyboardAppearance: Brightness.light,
+                    onTapUp: (details, p1) {
+                      // Always ensure focus when tapping
+                      if (!widget.readOnly) {
+                        _focusNode.requestFocus();
+                      }
+                      return false;
+                    },
+                  ),
                 ),
               ),
             ),

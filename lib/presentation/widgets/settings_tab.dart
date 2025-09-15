@@ -95,8 +95,8 @@ class SettingsTab extends ConsumerWidget {
                               onPressed: syncStatus == SyncStatus.syncing
                                   ? null
                                   : () async {
-                                      final syncService = ref.read(syncServiceProvider);
-                                      await syncService.forceSync();
+                                      final syncServiceManager = ref.read(syncServiceManagerProvider.notifier);
+                                      await syncServiceManager.syncService.forceSync();
                                     },
                               child: syncStatus == SyncStatus.syncing
                                   ? const SizedBox(
@@ -136,6 +136,16 @@ class SettingsTab extends ConsumerWidget {
                     },
                   ),
                 ),
+              ],
+            ),
+
+            const SizedBox(height: 24),
+
+            // Debug Section
+            _buildSection(
+              title: 'Debug Info',
+              children: [
+                _buildDebugInfo(),
               ],
             ),
 
@@ -468,6 +478,80 @@ class SettingsTab extends ConsumerWidget {
       return '${difference.inHours}h ago';
     } else {
       return '${difference.inDays}d ago';
+    }
+  }
+
+  Widget _buildDebugInfo() {
+    return Consumer(
+      builder: (context, ref, child) {
+        return FutureBuilder<Map<String, dynamic>>(
+          future: _getDebugInfo(ref),
+          builder: (context, snapshot) {
+            if (!snapshot.hasData) {
+              return const ListTile(
+                leading: CircularProgressIndicator(),
+                title: Text('Loading debug info...'),
+              );
+            }
+
+            final debugInfo = snapshot.data!;
+            return Column(
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.queue, color: Colors.orange),
+                  title: const Text('Sync Queue'),
+                  subtitle: Text('${debugInfo['syncQueueCount']} operations pending'),
+                  trailing: Text('${debugInfo['readyOpsCount']} ready'),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.folder, color: Colors.blue),
+                  title: const Text('Local Groups'),
+                  subtitle: Text('${debugInfo['localGroupsCount']} total'),
+                  trailing: Text('${debugInfo['unsyncedGroupsCount']} unsynced'),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.note, color: Colors.green),
+                  title: const Text('Local Notes'),
+                  subtitle: Text('${debugInfo['localNotesCount']} total'),
+                  trailing: Text('${debugInfo['unsyncedNotesCount']} unsynced'),
+                ),
+                if (debugInfo['syncQueueOps'].isNotEmpty)
+                  ExpansionTile(
+                    leading: const Icon(Icons.list, color: Colors.red),
+                    title: const Text('Queue Details'),
+                    children: [
+                      for (final op in debugInfo['syncQueueOps'])
+                        ListTile(
+                          dense: true,
+                          title: Text('${op['operation']} ${op['table']}'),
+                          subtitle: Text('Local ID: ${op['localId']}'),
+                          trailing: Text('Retry: ${op['retryCount']}'),
+                        ),
+                    ],
+                  ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<Map<String, dynamic>> _getDebugInfo(WidgetRef ref) async {
+    try {
+      final syncService = ref.read(syncServiceManagerProvider.notifier).syncService;
+      return await syncService.getDebugInfo();
+    } catch (e) {
+      return {
+        'error': e.toString(),
+        'syncQueueCount': 0,
+        'readyOpsCount': 0,
+        'localGroupsCount': 0,
+        'unsyncedGroupsCount': 0,
+        'localNotesCount': 0,
+        'unsyncedNotesCount': 0,
+        'syncQueueOps': [],
+      };
     }
   }
 }

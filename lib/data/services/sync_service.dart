@@ -33,8 +33,8 @@ class SyncService {
       }
     });
 
-    // Set up periodic sync
-    _syncTimer = Timer.periodic(const Duration(minutes: 5), (_) {
+    // Set up periodic sync (more frequent for better responsiveness)
+    _syncTimer = Timer.periodic(const Duration(seconds: 30), (_) {
       if (!_isSyncing) {
         _performSync();
       }
@@ -43,6 +43,13 @@ class SyncService {
     // Set up realtime subscriptions if authenticated
     if (SupabaseConfig.isAuthenticated) {
       await _setupRealtimeSubscriptions();
+
+      // Check for pending operations and sync immediately
+      final pendingOps = await _database.getPendingSyncOperations();
+      if (pendingOps.isNotEmpty && !_isSyncing) {
+        print('🔄 Found ${pendingOps.length} pending operations on startup, syncing...');
+        _performSync();
+      }
     }
   }
 
@@ -50,6 +57,22 @@ class SyncService {
     _syncTimer?.cancel();
     await _connectivitySubscription?.cancel();
     await _realtimeChannel?.unsubscribe();
+  }
+
+  /// Called when authentication state changes to set up or tear down realtime subscriptions
+  Future<void> onAuthStateChanged(bool isAuthenticated) async {
+    if (isAuthenticated) {
+      // User signed in, set up realtime subscriptions
+      await _setupRealtimeSubscriptions();
+      // Trigger an immediate sync to pull any server changes
+      if (!_isSyncing) {
+        _performSync();
+      }
+    } else {
+      // User signed out, tear down realtime subscriptions
+      await _realtimeChannel?.unsubscribe();
+      _realtimeChannel = null;
+    }
   }
 
   Future<void> _setupRealtimeSubscriptions() async {
@@ -290,37 +313,220 @@ class SyncService {
   }
 
   Future<void> _processSyncQueue() async {
-    final allPendingOps = await _database.getPendingSyncOperations();
+    print('🔄 Starting comprehensive sync process...');
 
-    // Filter operations that are ready to retry (not waiting for next retry time)
+    // Step 1: Discover ALL local data that needs syncing (not just queue)
+    await _discoverAndQueueAllUnsyncedData();
+
+    // Step 2: Process queue with dependency resolution
+    await _processQueueWithDependencyResolution();
+
+    print('✅ Sync process completed');
+  }
+
+  /// Discovers all local data that needs syncing and adds to queue if missing
+  Future<void> _discoverAndQueueAllUnsyncedData() async {
+    print('🔍 Discovering all unsynced local data...');
+
+    // Find all groups that need syncing
+    final allGroups = await _database.getAllGroups();
+    final unsyncedGroups = allGroups.where((g) => g.needsSync || g.supabaseId == null).toList();
+    print('📋 Found ${unsyncedGroups.length} groups needing sync');
+
+    // Find all notes that need syncing
+    final allNotes = await _database.getAllNotes();
+    final unsyncedNotes = allNotes.where((n) => n.needsSync || n.supabaseId == null).toList();
+    print('📋 Found ${unsyncedNotes.length} notes needing sync');
+
+    // Get existing queue operations to avoid duplicates
+    final existingOps = await _database.getPendingSyncOperations();
+    final existingGroupOps = existingOps.where((op) => op.entityTable == 'groups').map((op) => op.localId).toSet();
+    final existingNoteOps = existingOps.where((op) => op.entityTable == 'notes').map((op) => op.localId).toSet();
+
+    // Add missing group operations to queue
+    for (final group in unsyncedGroups) {
+      if (!existingGroupOps.contains(group.id)) {
+        final operation = group.supabaseId == null ? 'create' : 'update';
+        await _addGroupToSyncQueue(group, operation);
+        print('➕ Added group to sync queue: ${group.name} ($operation)');
+      }
+    }
+
+    // Add missing note operations to queue
+    for (final note in unsyncedNotes) {
+      if (!existingNoteOps.contains(note.id)) {
+        final operation = note.supabaseId == null ? 'create' : 'update';
+        await _addNoteToSyncQueue(note, operation);
+        print('➕ Added note to sync queue: ${note.title} ($operation)');
+      }
+    }
+  }
+
+  /// Processes sync queue with intelligent dependency resolution
+  Future<void> _processQueueWithDependencyResolution() async {
+    final allPendingOps = await _database.getPendingSyncOperations();
+    print('🔄 Processing sync queue: ${allPendingOps.length} total operations');
+
+    // Filter operations that are ready to retry
     final now = DateTime.now();
     final readyOps = allPendingOps.where((op) => op.nextRetryAt == null || op.nextRetryAt!.isBefore(now)).toList();
+    print('🔄 Ready operations: ${readyOps.length}');
 
-    // Sort operations to ensure dependencies are handled first
-    // Groups should be synced before notes that reference them
-    final sortedOps = _sortOperationsByDependency(readyOps);
+    // Process with dependency resolution
+    await _processOperationsWithDependencies(readyOps);
+  }
 
-    for (final op in sortedOps) {
+  /// Adds a group to sync queue with proper data formatting
+  Future<void> _addGroupToSyncQueue(Group group, String operation) async {
+    final data = {
+      'name': group.name,
+      'color': group.color,
+      'created_at': group.createdAt.toIso8601String(),
+      'updated_at': group.updatedAt.toIso8601String(),
+    };
+
+    await _database.addToSyncQueue(SyncQueueCompanion(
+      operation: Value(operation),
+      entityTable: const Value('groups'),
+      localId: Value(group.id),
+      data: Value(jsonEncode(data)),
+    ));
+  }
+
+  /// Adds a note to sync queue with proper data formatting
+  Future<void> _addNoteToSyncQueue(Note note, String operation) async {
+    final data = {
+      'title': note.title,
+      'content': note.content,
+      'markdown': note.markdown,
+      'plain_text': note.plainText,
+      'group_id': note.groupId,
+      'created_at': note.createdAt.toIso8601String(),
+      'updated_at': note.updatedAt.toIso8601String(),
+    };
+
+    await _database.addToSyncQueue(SyncQueueCompanion(
+      operation: Value(operation),
+      entityTable: const Value('notes'),
+      localId: Value(note.id),
+      data: Value(jsonEncode(data)),
+    ));
+  }
+
+  /// Processes operations with intelligent dependency resolution
+  Future<void> _processOperationsWithDependencies(List<SyncQueueData> operations) async {
+    // Separate operations by type
+    final groupOps = operations.where((op) => op.entityTable == 'groups').toList();
+    final noteOps = operations.where((op) => op.entityTable == 'notes').toList();
+
+    print('🔄 Processing ${groupOps.length} group operations first...');
+
+    // Process all group operations first
+    for (final op in groupOps) {
+      await _processSingleOperation(op);
+    }
+
+    print('🔄 Processing ${noteOps.length} note operations...');
+
+    // Process note operations with dependency checking
+    for (final op in noteOps) {
+      await _processNoteOperationWithDependencyResolution(op);
+    }
+  }
+
+  /// Processes a note operation, automatically resolving group dependencies
+  Future<void> _processNoteOperationWithDependencyResolution(SyncQueueData op) async {
+    final data = jsonDecode(op.data);
+    final groupIdValue = data['group_id'];
+
+    if (groupIdValue == null) {
+      print('❌ Note has null group_id, removing from queue');
+      await _database.removeSyncOperation(op.id);
+      return;
+    }
+
+    final localGroupId = groupIdValue as int;
+
+    // Check if the referenced group is synced
+    final group = await _database.getGroupById(localGroupId);
+    if (group == null) {
+      print('❌ Note references non-existent group (ID: $localGroupId)');
+      await _database.removeSyncOperation(op.id);
+      return;
+    }
+
+    // If group doesn't have Supabase ID, sync it first
+    if (group.supabaseId == null) {
+      print('🔄 Auto-syncing dependency: group "${group.name}" for note "${data['title']}"');
+
       try {
-        await _processSyncOperation(op);
-        await _database.removeSyncOperation(op.id);
-      } catch (e) {
-        // Implement exponential backoff
-        final nextRetry = DateTime.now().add(
-          AppConstants.syncRetryDelay * (op.retryCount + 1),
-        );
+        // Create group on server first
+        await _createGroupOnServer(group);
+        print('✅ Auto-synced group dependency: ${group.name}');
 
-        if (op.retryCount < AppConstants.maxSyncRetries) {
-          // Update retry count and next retry time
-          await _database.updateSyncOperationRetry(op.id, op.retryCount + 1, nextRetry);
-          print(
-              '⚠️ Sync operation failed, will retry: ${op.operation} ${op.entityTable} (attempt ${op.retryCount + 1}/${AppConstants.maxSyncRetries})');
-        } else {
-          // Max retries reached, remove from queue or handle differently
-          await _database.removeSyncOperation(op.id);
-          print('❌ Sync operation failed permanently: ${op.operation} ${op.entityTable}');
-        }
+        // Now process the note
+        await _processSingleOperation(op);
+      } catch (e) {
+        print('❌ Failed to auto-sync group dependency: $e');
+        await _handleOperationFailure(op, e);
       }
+    } else {
+      // Group is already synced, process note normally
+      await _processSingleOperation(op);
+    }
+  }
+
+  /// Creates a group on server and updates local record
+  Future<void> _createGroupOnServer(Group group) async {
+    final userId = SupabaseConfig.currentUser!.id;
+    final serverData = {
+      'name': group.name,
+      'color': group.color,
+      'user_id': userId,
+      'created_at': group.createdAt.toIso8601String(),
+      'updated_at': group.updatedAt.toIso8601String(),
+    };
+
+    final response = await SupabaseConfig.client.from('groups').insert(serverData).select().single();
+    final supabaseId = response['id'] as String;
+
+    // Update local record with Supabase ID
+    await _database.updateGroup(
+      group.id,
+      GroupsCompanion(
+        supabaseId: Value(supabaseId),
+        needsSync: const Value(false),
+      ),
+    );
+
+    print('🔄 Created group on server: ${group.name} (${group.id} -> $supabaseId)');
+  }
+
+  /// Processes a single operation with proper error handling
+  Future<void> _processSingleOperation(SyncQueueData op) async {
+    print('🔄 Processing: ${op.operation} ${op.entityTable} (local ID: ${op.localId})');
+    try {
+      await _processSyncOperation(op);
+      await _database.removeSyncOperation(op.id);
+      print('✅ Completed: ${op.operation} ${op.entityTable} (local ID: ${op.localId})');
+    } catch (e) {
+      print('❌ Failed: ${op.operation} ${op.entityTable} (local ID: ${op.localId}) - $e');
+      await _handleOperationFailure(op, e);
+    }
+  }
+
+  /// Handles operation failures with intelligent retry logic
+  Future<void> _handleOperationFailure(SyncQueueData op, dynamic error) async {
+    final nextRetry = DateTime.now().add(
+      AppConstants.syncRetryDelay * (op.retryCount + 1),
+    );
+
+    if (op.retryCount < AppConstants.maxSyncRetries) {
+      await _database.updateSyncOperationRetry(op.id, op.retryCount + 1, nextRetry);
+      print('⚠️ Will retry: ${op.operation} ${op.entityTable} (attempt ${op.retryCount + 1}/${AppConstants.maxSyncRetries})');
+    } else {
+      await _database.removeSyncOperation(op.id);
+      print('❌ Permanently failed: ${op.operation} ${op.entityTable}');
     }
   }
 
@@ -330,7 +536,7 @@ class SyncService {
 
     switch (op.operation) {
       case 'create':
-        await _createOnServer(op.entityTable, data, userId);
+        await _createOnServer(op.entityTable, op.localId, data, userId);
         break;
       case 'update':
         await _updateOnServer(op.entityTable, op.localId, data, userId);
@@ -341,7 +547,7 @@ class SyncService {
     }
   }
 
-  Future<void> _createOnServer(String table, Map<String, dynamic> data, String userId) async {
+  Future<void> _createOnServer(String table, int localId, Map<String, dynamic> data, String userId) async {
     // Prepare data for Supabase
     final serverData = Map<String, dynamic>.from(data);
     serverData['user_id'] = userId;
@@ -350,6 +556,7 @@ class SyncService {
     serverData.remove('local_id');
     serverData.remove('needs_sync');
     serverData.remove('id'); // Remove local integer ID
+    serverData.remove('client_id'); // Remove client ID used for conflict resolution
 
     // For notes, we need to handle group_id mapping
     if (table == 'notes' && serverData.containsKey('group_id')) {
@@ -368,8 +575,8 @@ class SyncService {
       final response = await SupabaseConfig.client.from(table).insert(serverData).select().single();
       final supabaseId = response['id'] as String;
 
-      // Update local record with Supabase ID
-      await _updateLocalRecordWithSupabaseId(table, data, supabaseId);
+      // Update local record with Supabase ID using the local ID
+      await _updateLocalRecordWithSupabaseIdByLocalId(table, localId, supabaseId);
 
       print('✅ Created $table on server: $supabaseId');
     } catch (e) {
@@ -466,46 +673,34 @@ class SyncService {
   Future<String?> _getSupabaseIdForLocalId(String table, int localId) async {
     if (table == 'groups') {
       final group = await _database.getGroupById(localId);
+      print('🔍 Looking up group ID $localId: found=${group != null}, supabaseId=${group?.supabaseId}');
       return group?.supabaseId;
     } else if (table == 'notes') {
       final note = await _database.getNoteById(localId);
+      print('🔍 Looking up note ID $localId: found=${note != null}, supabaseId=${note?.supabaseId}');
       return note?.supabaseId;
     }
     return null;
   }
 
-  /// Updates a local record with its Supabase ID after successful server creation
-  Future<void> _updateLocalRecordWithSupabaseId(String table, Map<String, dynamic> originalData, String supabaseId) async {
-    // Find the local record by matching the data
+  /// Updates a local record with its Supabase ID after successful server creation using local ID
+  Future<void> _updateLocalRecordWithSupabaseIdByLocalId(String table, int localId, String supabaseId) async {
     if (table == 'groups') {
-      final groups = await _database.getAllGroups();
-      final matchingGroup = groups
-          .where((g) => g.name == originalData['name'] && g.color == originalData['color'] && g.supabaseId == null && g.needsSync == true)
-          .firstOrNull;
-
-      if (matchingGroup != null) {
-        await _database.updateGroup(
-            matchingGroup.id,
-            GroupsCompanion(
-              supabaseId: Value(supabaseId),
-              needsSync: const Value(false),
-            ));
-      }
+      await _database.updateGroup(
+          localId,
+          GroupsCompanion(
+            supabaseId: Value(supabaseId),
+            needsSync: const Value(false),
+          ));
+      print('🔄 Updated local group $localId with Supabase ID: $supabaseId');
     } else if (table == 'notes') {
-      final notes = await _database.getAllNotes();
-      final matchingNote = notes
-          .where((n) =>
-              n.title == originalData['title'] && n.content == originalData['content'] && n.supabaseId == null && n.needsSync == true)
-          .firstOrNull;
-
-      if (matchingNote != null) {
-        await _database.updateNote(
-            matchingNote.id,
-            NotesCompanion(
-              supabaseId: Value(supabaseId),
-              needsSync: const Value(false),
-            ));
-      }
+      await _database.updateNote(
+          localId,
+          NotesCompanion(
+            supabaseId: Value(supabaseId),
+            needsSync: const Value(false),
+          ));
+      print('🔄 Updated local note $localId with Supabase ID: $supabaseId');
     }
   }
 
@@ -551,18 +746,37 @@ class SyncService {
         final existingGroup = localGroups.where((g) => g.supabaseId == supabaseId).firstOrNull;
 
         if (existingGroup == null) {
-          // New group from server - create locally
-          await _database.insertGroup(GroupsCompanion(
-            name: Value(serverGroup['name']),
-            color: Value(serverGroup['color']),
-            createdAt: Value(DateTime.parse(serverGroup['created_at'])),
-            updatedAt: Value(serverUpdatedAt),
-            isDeleted: Value(serverGroup['is_deleted'] ?? false),
-            supabaseId: Value(supabaseId),
-            version: Value(serverGroup['version'] ?? 1),
-            needsSync: const Value(false),
-          ));
-          print('📥 Created local group from server: ${serverGroup['name']}');
+          // Check if there's a local group with the same name that needs to be linked
+          final matchingLocalGroup =
+              localGroups.where((g) => g.name == serverGroup['name'] && g.supabaseId == null && g.needsSync == true).firstOrNull;
+
+          if (matchingLocalGroup != null) {
+            // Update existing local group with Supabase ID instead of creating new one
+            await _database.updateGroup(
+                matchingLocalGroup.id,
+                GroupsCompanion(
+                  color: Value(serverGroup['color']),
+                  updatedAt: Value(serverUpdatedAt),
+                  isDeleted: Value(serverGroup['is_deleted'] ?? false),
+                  supabaseId: Value(supabaseId),
+                  version: Value(serverGroup['version'] ?? 1),
+                  needsSync: const Value(false),
+                ));
+            print('📥 Linked local group to server: ${serverGroup['name']} (local ID: ${matchingLocalGroup.id})');
+          } else {
+            // New group from server - create locally
+            await _database.insertGroup(GroupsCompanion(
+              name: Value(serverGroup['name']),
+              color: Value(serverGroup['color']),
+              createdAt: Value(DateTime.parse(serverGroup['created_at'])),
+              updatedAt: Value(serverUpdatedAt),
+              isDeleted: Value(serverGroup['is_deleted'] ?? false),
+              supabaseId: Value(supabaseId),
+              version: Value(serverGroup['version'] ?? 1),
+              needsSync: const Value(false),
+            ));
+            print('📥 Created local group from server: ${serverGroup['name']}');
+          }
         } else {
           // Check for conflicts and merge
           if (serverUpdatedAt.isAfter(existingGroup.updatedAt)) {
@@ -665,5 +879,49 @@ class SyncService {
   // Manual sync trigger
   Future<void> forceSync() async {
     await _performSync();
+  }
+
+  // Debug information
+  Future<Map<String, dynamic>> getDebugInfo() async {
+    try {
+      final allPendingOps = await _database.getPendingSyncOperations();
+      final now = DateTime.now();
+      final readyOps = allPendingOps.where((op) => op.nextRetryAt == null || op.nextRetryAt!.isBefore(now)).toList();
+
+      final allGroups = await _database.getAllGroups();
+      final unsyncedGroups = allGroups.where((g) => g.needsSync || g.supabaseId == null).toList();
+
+      final allNotes = await _database.getAllNotes();
+      final unsyncedNotes = allNotes.where((n) => n.needsSync || n.supabaseId == null).toList();
+
+      return {
+        'syncQueueCount': allPendingOps.length,
+        'readyOpsCount': readyOps.length,
+        'localGroupsCount': allGroups.length,
+        'unsyncedGroupsCount': unsyncedGroups.length,
+        'localNotesCount': allNotes.length,
+        'unsyncedNotesCount': unsyncedNotes.length,
+        'syncQueueOps': allPendingOps
+            .map((op) => {
+                  'operation': op.operation,
+                  'table': op.entityTable,
+                  'localId': op.localId,
+                  'retryCount': op.retryCount,
+                  'nextRetryAt': op.nextRetryAt?.toIso8601String(),
+                })
+            .toList(),
+      };
+    } catch (e) {
+      return {
+        'error': e.toString(),
+        'syncQueueCount': 0,
+        'readyOpsCount': 0,
+        'localGroupsCount': 0,
+        'unsyncedGroupsCount': 0,
+        'localNotesCount': 0,
+        'unsyncedNotesCount': 0,
+        'syncQueueOps': [],
+      };
+    }
   }
 }

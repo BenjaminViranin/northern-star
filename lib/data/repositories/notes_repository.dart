@@ -91,8 +91,13 @@ class NotesRepository {
     final success = await _database.updateNote(id, note);
 
     if (success) {
-      // Add to sync queue
+      // Get current note to include group_id in sync data
+      final currentNote = await _database.getNoteById(id);
+      if (currentNote == null) return false;
+
+      // Add to sync queue - always include group_id for updates
       final updateData = <String, dynamic>{
+        'group_id': groupId ?? currentNote.groupId, // Use new groupId or keep current
         'updated_at': now.toIso8601String(),
       };
 
@@ -100,7 +105,6 @@ class NotesRepository {
       if (content != null) updateData['content'] = content;
       if (markdown != null) updateData['markdown'] = markdown;
       if (plainText != null) updateData['plain_text'] = plainText;
-      if (groupId != null) updateData['group_id'] = groupId;
 
       await _addToSyncQueue('update', 'notes', id, updateData);
     }

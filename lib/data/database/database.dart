@@ -50,9 +50,9 @@ class AppDatabase extends _$AppDatabase {
   }
 
   // Group operations
-  Future<List<Group>> getAllGroups() => select(groups).get();
+  Future<List<Group>> getAllGroups() => (select(groups)..where((g) => g.isDeleted.equals(false))).get();
 
-  Future<Group?> getGroupById(int id) => (select(groups)..where((g) => g.id.equals(id))).getSingleOrNull();
+  Future<Group?> getGroupById(int id) => (select(groups)..where((g) => g.id.equals(id) & g.isDeleted.equals(false))).getSingleOrNull();
 
   Future<int> insertGroup(GroupsCompanion group) => into(groups).insert(group);
 
@@ -69,7 +69,7 @@ class AppDatabase extends _$AppDatabase {
   Future<List<Note>> getNotesByGroup(int groupId) =>
       (select(notes)..where((n) => n.groupId.equals(groupId) & n.isDeleted.equals(false))).get();
 
-  Future<Note?> getNoteById(int id) => (select(notes)..where((n) => n.id.equals(id))).getSingleOrNull();
+  Future<Note?> getNoteById(int id) => (select(notes)..where((n) => n.id.equals(id) & n.isDeleted.equals(false))).getSingleOrNull();
 
   Future<int> insertNote(NotesCompanion note) => into(notes).insert(note);
 
