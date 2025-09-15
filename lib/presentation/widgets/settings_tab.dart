@@ -85,43 +85,53 @@ class SettingsTab extends ConsumerWidget {
                       final syncError = ref.watch(syncErrorProvider);
                       final lastSyncTime = ref.watch(lastSyncTimeProvider);
 
-                      return Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          ElevatedButton(
-                            onPressed: syncStatus == SyncStatus.syncing
-                                ? null
-                                : () async {
-                                    final syncService = ref.read(syncServiceProvider);
-                                    await syncService.forceSync();
-                                  },
-                            child: syncStatus == SyncStatus.syncing
-                                ? const SizedBox(
-                                    width: 16,
-                                    height: 16,
-                                    child: CircularProgressIndicator(strokeWidth: 2),
-                                  )
-                                : const Text('Sync Now'),
-                          ),
-                          const SizedBox(height: 4),
-                          if (syncError != null)
-                            Text(
-                              'Error: $syncError',
-                              style: const TextStyle(
-                                color: Colors.red,
-                                fontSize: 12,
-                              ),
-                            )
-                          else if (lastSyncTime != null)
-                            Text(
-                              'Last sync: ${_formatSyncTime(lastSyncTime)}',
-                              style: const TextStyle(
-                                color: AppTheme.textSecondary,
-                                fontSize: 12,
-                              ),
+                      return SizedBox(
+                        width: 120,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            ElevatedButton(
+                              onPressed: syncStatus == SyncStatus.syncing
+                                  ? null
+                                  : () async {
+                                      final syncService = ref.read(syncServiceProvider);
+                                      await syncService.forceSync();
+                                    },
+                              child: syncStatus == SyncStatus.syncing
+                                  ? const SizedBox(
+                                      width: 16,
+                                      height: 16,
+                                      child: CircularProgressIndicator(strokeWidth: 2),
+                                    )
+                                  : const Text('Sync Now'),
                             ),
-                        ],
+                            if (syncError != null)
+                              Flexible(
+                                child: Text(
+                                  'Error: $syncError',
+                                  style: const TextStyle(
+                                    color: Colors.red,
+                                    fontSize: 10,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              )
+                            else if (lastSyncTime != null)
+                              Flexible(
+                                child: Text(
+                                  'Last sync: ${_formatSyncTime(lastSyncTime)}',
+                                  style: const TextStyle(
+                                    color: AppTheme.textSecondary,
+                                    fontSize: 10,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                          ],
+                        ),
                       );
                     },
                   ),

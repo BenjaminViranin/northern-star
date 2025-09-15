@@ -322,9 +322,7 @@ class GroupsManagementView extends ConsumerWidget {
                       ),
                       trailing: IconButton(
                         icon: const Icon(Icons.more_vert, color: AppTheme.textSecondary),
-                        onPressed: () {
-                          // TODO: Show group actions
-                        },
+                        onPressed: () => _showGroupActions(context, ref, group),
                       ),
                     ),
                   );
@@ -338,6 +336,138 @@ class GroupsManagementView extends ConsumerWidget {
                 ),
               ),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showGroupActions(BuildContext context, WidgetRef ref, dynamic group) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppTheme.surfaceDark,
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.edit, color: AppTheme.textPrimary),
+              title: const Text('Rename Group', style: TextStyle(color: AppTheme.textPrimary)),
+              onTap: () {
+                Navigator.pop(context);
+                _showRenameGroupDialog(context, ref, group);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.palette, color: AppTheme.textPrimary),
+              title: const Text('Change Color', style: TextStyle(color: AppTheme.textPrimary)),
+              onTap: () {
+                Navigator.pop(context);
+                _showChangeColorDialog(context, ref, group);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.delete, color: Colors.red),
+              title: const Text('Delete Group', style: TextStyle(color: Colors.red)),
+              onTap: () {
+                Navigator.pop(context);
+                _showDeleteGroupDialog(context, ref, group);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showRenameGroupDialog(BuildContext context, WidgetRef ref, dynamic group) {
+    final controller = TextEditingController(text: group.name);
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppTheme.surfaceDark,
+        title: const Text('Rename Group', style: TextStyle(color: AppTheme.textPrimary)),
+        content: TextField(
+          controller: controller,
+          decoration: const InputDecoration(
+            labelText: 'Group Name',
+            labelStyle: TextStyle(color: AppTheme.textSecondary),
+          ),
+          style: const TextStyle(color: AppTheme.textPrimary),
+          autofocus: true,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel', style: TextStyle(color: AppTheme.textSecondary)),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              if (controller.text.trim().isNotEmpty) {
+                try {
+                  final repository = ref.read(groupsRepositoryProvider);
+                  await repository.updateGroup(
+                    id: group.id,
+                    name: controller.text.trim(),
+                    color: group.color,
+                  );
+                  if (context.mounted) Navigator.pop(context);
+                } catch (e) {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+                    );
+                  }
+                }
+              }
+            },
+            child: const Text('Rename'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showChangeColorDialog(BuildContext context, WidgetRef ref, dynamic group) {
+    // TODO: Implement color change dialog
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Color change feature coming soon')),
+    );
+  }
+
+  void _showDeleteGroupDialog(BuildContext context, WidgetRef ref, dynamic group) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppTheme.surfaceDark,
+        title: const Text('Delete Group', style: TextStyle(color: AppTheme.textPrimary)),
+        content: Text(
+          'Are you sure you want to delete "${group.name}"? This action cannot be undone.',
+          style: const TextStyle(color: AppTheme.textPrimary),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel', style: TextStyle(color: AppTheme.textSecondary)),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              try {
+                final repository = ref.read(groupsRepositoryProvider);
+                await repository.deleteGroup(group.id);
+                if (context.mounted) Navigator.pop(context);
+              } catch (e) {
+                if (context.mounted) {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+                  );
+                }
+              }
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Delete'),
           ),
         ],
       ),
