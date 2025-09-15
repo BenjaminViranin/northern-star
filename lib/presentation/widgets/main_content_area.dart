@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/app_theme.dart';
+import '../../core/constants/app_constants.dart';
 import '../screens/home_screen.dart';
 import '../widgets/rich_text_editor.dart';
 import '../widgets/settings_tab.dart';
@@ -32,8 +33,15 @@ class MainContentArea extends ConsumerWidget {
   }
 
   Widget _buildNotesContent(BuildContext context, WidgetRef ref, NavigationState navigationState) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isMobile = screenWidth < AppConstants.mobileBreakpoint;
+
     if (navigationState.selectedNoteId == null) {
-      return _buildEmptyNoteState(context);
+      if (isMobile) {
+        return _buildMobileNotesList(context, ref, navigationState);
+      } else {
+        return _buildEmptyNoteState(context);
+      }
     }
 
     return Column(
@@ -52,7 +60,169 @@ class MainContentArea extends ConsumerWidget {
     );
   }
 
+  Widget _buildMobileNotesList(BuildContext context, WidgetRef ref, NavigationState navigationState) {
+    final notes = ref.watch(notesProvider);
+    final groups = ref.watch(groupsProvider);
+
+    return notes.when(
+      data: (notesList) {
+        if (notesList.isEmpty) {
+          return _buildEmptyNoteState(context);
+        }
+
+        // Filter notes based on search query and selected group
+        var filteredNotes = notesList;
+        if (navigationState.searchQuery.isNotEmpty) {
+          filteredNotes = notesList.where((note) {
+            return note.title.toLowerCase().contains(navigationState.searchQuery.toLowerCase()) ||
+                note.content.toLowerCase().contains(navigationState.searchQuery.toLowerCase());
+          }).toList();
+        }
+        if (navigationState.selectedGroupId != null) {
+          filteredNotes = filteredNotes.where((note) => note.groupId == navigationState.selectedGroupId).toList();
+        }
+
+        return Column(
+          children: [
+            // Search and filter bar
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: const BoxDecoration(
+                color: AppTheme.surfaceDark,
+                border: Border(bottom: BorderSide(color: AppTheme.border)),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      decoration: const InputDecoration(
+                        hintText: 'Search notes...',
+                        hintStyle: TextStyle(color: AppTheme.textSecondary),
+                        prefixIcon: Icon(Icons.search, color: AppTheme.textSecondary),
+                        border: InputBorder.none,
+                      ),
+                      style: const TextStyle(color: AppTheme.textPrimary),
+                      onChanged: (query) {
+                        ref.read(navigationStateProvider.notifier).setSearchQuery(query);
+                      },
+                    ),
+                  ),
+                  if (navigationState.selectedGroupId != null)
+                    IconButton(
+                      icon: const Icon(Icons.clear, color: AppTheme.textSecondary),
+                      onPressed: () {
+                        ref.read(navigationStateProvider.notifier).selectGroup(null);
+                      },
+                    ),
+                ],
+              ),
+            ),
+            // Notes list
+            Expanded(
+              child: ListView.builder(
+                padding: const EdgeInsets.all(16),
+                itemCount: filteredNotes.length,
+                itemBuilder: (context, index) {
+                  final note = filteredNotes[index];
+                  return _buildMobileNoteCard(context, ref, note, groups);
+                },
+              ),
+            ),
+          ],
+        );
+      },
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (error, stack) => Center(
+        child: Text(
+          'Error loading notes: $error',
+          style: const TextStyle(color: Colors.red),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMobileNoteCard(BuildContext context, WidgetRef ref, dynamic note, AsyncValue groups) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      color: AppTheme.surfaceDark,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: () {
+          ref.read(navigationStateProvider.notifier).selectNote(note.id);
+        },
+        onLongPress: () {
+          _showNoteActions(context, ref, note);
+        },
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      note.title.isEmpty ? 'Untitled' : note.title,
+                      style: const TextStyle(
+                        color: AppTheme.textPrimary,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  // Group indicator
+                  groups.when(
+                    data: (groupsList) {
+                      try {
+                        final group = groupsList.firstWhere((g) => g.id == note.groupId);
+                        return Container(
+                          width: 12,
+                          height: 12,
+                          decoration: BoxDecoration(
+                            color: Color(int.parse(group.color.substring(1), radix: 16) + 0xFF000000),
+                            shape: BoxShape.circle,
+                          ),
+                        );
+                      } catch (e) {
+                        return const SizedBox.shrink();
+                      }
+                    },
+                    loading: () => const SizedBox.shrink(),
+                    error: (_, __) => const SizedBox.shrink(),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                note.plainText.length > 150 ? '${note.plainText.substring(0, 150)}...' : note.plainText,
+                style: const TextStyle(
+                  color: AppTheme.textSecondary,
+                  fontSize: 14,
+                ),
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                _formatDate(note.updatedAt),
+                style: TextStyle(
+                  color: AppTheme.textSecondary.withOpacity(0.7),
+                  fontSize: 12,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildEmptyNoteState(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isMobile = screenWidth < AppConstants.mobileBreakpoint;
+
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -64,7 +234,7 @@ class MainContentArea extends ConsumerWidget {
           ),
           const SizedBox(height: 16),
           Text(
-            'Select a note to start editing',
+            'No notes yet',
             style: TextStyle(
               fontSize: 18,
               color: AppTheme.textSecondary.withOpacity(0.7),
@@ -72,11 +242,12 @@ class MainContentArea extends ConsumerWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            'Choose a note from the sidebar or create a new one',
+            isMobile ? 'Tap the + button to create your first note' : 'Choose a note from the sidebar or create a new one',
             style: TextStyle(
               fontSize: 14,
               color: AppTheme.textSecondary.withOpacity(0.5),
             ),
+            textAlign: TextAlign.center,
           ),
         ],
       ),
@@ -758,5 +929,26 @@ class GroupsManagementView extends ConsumerWidget {
         ],
       ),
     );
+  }
+
+  String _formatDate(DateTime date) {
+    final now = DateTime.now();
+    final difference = now.difference(date);
+
+    if (difference.inDays == 0) {
+      if (difference.inHours == 0) {
+        if (difference.inMinutes == 0) {
+          return 'Just now';
+        }
+        return '${difference.inMinutes}m ago';
+      }
+      return '${difference.inHours}h ago';
+    } else if (difference.inDays == 1) {
+      return 'Yesterday';
+    } else if (difference.inDays < 7) {
+      return '${difference.inDays}d ago';
+    } else {
+      return '${date.day}/${date.month}/${date.year}';
+    }
   }
 }

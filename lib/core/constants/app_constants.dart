@@ -44,6 +44,11 @@ class AppConstants {
   static const int minSplitPanes = 2;
   static const double minPaneWidth = 300;
 
+  // Responsive design breakpoints
+  static const double mobileBreakpoint = 768;
+  static const double tabletBreakpoint = 1024;
+  static const double desktopBreakpoint = 1200;
+
   // Default Groups
   static const List<String> defaultGroups = [
     'Work',
