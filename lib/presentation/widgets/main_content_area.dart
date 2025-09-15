@@ -265,9 +265,43 @@ class MainContentArea extends ConsumerWidget {
             ListTile(
               leading: const Icon(Icons.delete, color: Colors.red),
               title: const Text('Delete', style: TextStyle(color: Colors.red)),
-              onTap: () {
+              onTap: () async {
                 Navigator.pop(context);
-                // TODO: Show delete confirmation
+                print('🗑️ Delete action triggered for note: ${note.title} (ID: ${note.id})');
+
+                // Show delete confirmation dialog
+                final confirmed = await showDialog<bool>(
+                  context: context,
+                  builder: (context) => AlertDialog(
+                    backgroundColor: AppTheme.surfaceDark,
+                    title: const Text('Delete Note', style: TextStyle(color: AppTheme.textPrimary)),
+                    content: Text(
+                      'Are you sure you want to delete "${note.title.isEmpty ? 'Untitled' : note.title}"?',
+                      style: const TextStyle(color: AppTheme.textSecondary),
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context, false),
+                        child: const Text('Cancel'),
+                      ),
+                      TextButton(
+                        onPressed: () => Navigator.pop(context, true),
+                        style: TextButton.styleFrom(foregroundColor: Colors.red),
+                        child: const Text('Delete'),
+                      ),
+                    ],
+                  ),
+                );
+
+                if (confirmed == true) {
+                  print('🗑️ Delete confirmed, calling repository.deleteNote(${note.id})');
+                  final notesRepository = ref.read(notesRepositoryProvider);
+                  await notesRepository.deleteNote(note.id);
+
+                  // Clear the selected note since it's been deleted
+                  ref.read(navigationStateProvider.notifier).selectNote(null);
+                  print('🗑️ Note deletion completed');
+                }
               },
             ),
           ],

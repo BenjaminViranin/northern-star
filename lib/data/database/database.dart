@@ -71,6 +71,9 @@ class AppDatabase extends _$AppDatabase {
 
   Future<Note?> getNoteById(int id) => (select(notes)..where((n) => n.id.equals(id) & n.isDeleted.equals(false))).getSingleOrNull();
 
+  // Special method for sync operations that need to access deleted notes
+  Future<Note?> getNoteByIdIncludingDeleted(int id) => (select(notes)..where((n) => n.id.equals(id))).getSingleOrNull();
+
   Future<int> insertNote(NotesCompanion note) => into(notes).insert(note);
 
   Future<bool> updateNote(int id, NotesCompanion note) async {

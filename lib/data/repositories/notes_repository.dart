@@ -113,13 +113,18 @@ class NotesRepository {
   }
 
   Future<void> deleteNote(int id) async {
-    await _database.softDeleteNote(id);
+    print('🗑️ Deleting note with ID: $id');
+
+    final result = await _database.softDeleteNote(id);
+    print('🗑️ Soft delete result: $result rows affected');
 
     // Add to sync queue
     await _addToSyncQueue('delete', 'notes', id, {
       'is_deleted': true,
       'updated_at': DateTime.now().toIso8601String(),
     });
+
+    print('🗑️ Added note deletion to sync queue');
   }
 
   Future<List<Note>> searchNotes(String query) async {
@@ -175,11 +180,16 @@ class NotesRepository {
   }
 
   Future<void> _addToSyncQueue(String operation, String table, int localId, Map<String, dynamic> data) async {
+    print('📤 Adding to sync queue: $operation $table (localId: $localId)');
+    print('📤 Data: ${jsonEncode(data)}');
+
     await _database.addToSyncQueue(SyncQueueCompanion(
       operation: Value(operation),
       entityTable: Value(table),
       localId: Value(localId),
       data: Value(jsonEncode(data)),
     ));
+
+    print('📤 Successfully added to sync queue');
   }
 }

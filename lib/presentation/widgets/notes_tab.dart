@@ -19,6 +19,7 @@ class NotesTab extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final currentNoteId = ref.watch(currentNoteIdProvider);
+    print('🔧 NotesTab build - currentNoteId: $currentNoteId');
     final filteredNotes = ref.watch(filteredNotesProvider);
     final searchQuery = ref.watch(searchQueryProvider);
     final selectedGroupId = ref.watch(selectedGroupProvider);
@@ -186,43 +187,50 @@ class NotesTab extends ConsumerWidget {
                             ),
                           ),
                           const Spacer(),
-                          if (currentNoteId != null)
-                            PopupMenuButton<String>(
-                              icon: const Icon(Icons.more_vert, color: AppTheme.textSecondary),
-                              itemBuilder: (context) => [
-                                const PopupMenuItem(
-                                  value: 'rename',
-                                  child: Row(
-                                    children: [
-                                      Icon(Icons.edit, size: 16),
-                                      SizedBox(width: 8),
-                                      Text('Rename'),
-                                    ],
+                          if (currentNoteId != null) ...[
+                            Builder(builder: (context) {
+                              print('🔧 PopupMenuButton being rendered for note ID: $currentNoteId');
+                              return PopupMenuButton<String>(
+                                icon: const Icon(Icons.more_vert, color: AppTheme.textSecondary),
+                                itemBuilder: (context) => [
+                                  const PopupMenuItem(
+                                    value: 'rename',
+                                    child: Row(
+                                      children: [
+                                        Icon(Icons.edit, size: 16),
+                                        SizedBox(width: 8),
+                                        Text('Rename'),
+                                      ],
+                                    ),
                                   ),
-                                ),
-                                const PopupMenuItem(
-                                  value: 'move',
-                                  child: Row(
-                                    children: [
-                                      Icon(Icons.folder, size: 16),
-                                      SizedBox(width: 8),
-                                      Text('Move to Group'),
-                                    ],
+                                  const PopupMenuItem(
+                                    value: 'move',
+                                    child: Row(
+                                      children: [
+                                        Icon(Icons.folder, size: 16),
+                                        SizedBox(width: 8),
+                                        Text('Move to Group'),
+                                      ],
+                                    ),
                                   ),
-                                ),
-                                const PopupMenuItem(
-                                  value: 'delete',
-                                  child: Row(
-                                    children: [
-                                      Icon(Icons.delete, size: 16, color: Colors.red),
-                                      SizedBox(width: 8),
-                                      Text('Delete', style: TextStyle(color: Colors.red)),
-                                    ],
+                                  const PopupMenuItem(
+                                    value: 'delete',
+                                    child: Row(
+                                      children: [
+                                        Icon(Icons.delete, size: 16, color: Colors.red),
+                                        SizedBox(width: 8),
+                                        Text('Delete', style: TextStyle(color: Colors.red)),
+                                      ],
+                                    ),
                                   ),
-                                ),
-                              ],
-                              onSelected: (value) => _handleNoteAction(context, ref, value),
-                            ),
+                                ],
+                                onSelected: (value) {
+                                  print('🔧 PopupMenuButton onSelected called with value: $value');
+                                  _handleNoteAction(context, ref, value);
+                                },
+                              );
+                            }),
+                          ],
                         ],
                       ),
                     ),
@@ -286,7 +294,9 @@ class NotesTab extends ConsumerWidget {
                                     overflow: TextOverflow.ellipsis,
                                   ),
                                   onTap: () {
+                                    print('🔧 Note selected: ${note.title} (ID: ${note.id})');
                                     ref.read(currentNoteIdProvider.notifier).state = note.id;
+                                    print('🔧 currentNoteIdProvider set to: ${note.id}');
                                   },
                                 ),
                               );
@@ -325,11 +335,14 @@ class NotesTab extends ConsumerWidget {
   }
 
   void _handleNoteAction(BuildContext context, WidgetRef ref, String action) async {
+    print('🔧 _handleNoteAction called with action: $action');
     final currentNoteId = ref.read(currentNoteIdProvider);
+    print('🔧 Current note ID: $currentNoteId');
     if (currentNoteId == null) return;
 
     final notesRepository = ref.read(notesRepositoryProvider);
     final note = await notesRepository.getNoteById(currentNoteId);
+    print('🔧 Found note: ${note?.title} (ID: ${note?.id})');
 
     if (note == null) return;
 
@@ -351,6 +364,7 @@ class NotesTab extends ConsumerWidget {
         }
         break;
       case 'delete':
+        print('🗑️ Delete action triggered for note: ${note.title} (ID: ${note.id})');
         if (context.mounted) {
           showDialog(
             context: context,
@@ -358,8 +372,10 @@ class NotesTab extends ConsumerWidget {
               title: 'Delete Note',
               message: 'Are you sure you want to delete "${note.title}"?',
               onConfirm: () async {
+                print('🗑️ Delete confirmed, calling repository.deleteNote(${note.id})');
                 await notesRepository.deleteNote(note.id);
                 ref.read(currentNoteIdProvider.notifier).state = null;
+                print('🗑️ Note deletion completed');
               },
             ),
           );

@@ -437,6 +437,14 @@ class SyncService {
   /// Processes a note operation, automatically resolving group dependencies
   Future<void> _processNoteOperationWithDependencyResolution(SyncQueueData op) async {
     final data = jsonDecode(op.data);
+
+    // For delete operations, we don't need group_id validation
+    if (op.operation == 'delete') {
+      print('🗑️ Processing delete operation for note (local ID: ${op.localId})');
+      await _processSingleOperation(op);
+      return;
+    }
+
     final groupIdValue = data['group_id'];
 
     if (groupIdValue == null) {
@@ -630,7 +638,7 @@ class SyncService {
     final supabaseId = await _getSupabaseIdForLocalId(table, localId);
 
     if (supabaseId == null) {
-      print('⚠️ Cannot delete $table on server - no Supabase ID found for local ID: $localId');
+      print('✅ Delete operation successful - $table was never synced to server (local ID: $localId)');
       return;
     }
 
@@ -676,7 +684,8 @@ class SyncService {
       print('🔍 Looking up group ID $localId: found=${group != null}, supabaseId=${group?.supabaseId}');
       return group?.supabaseId;
     } else if (table == 'notes') {
-      final note = await _database.getNoteById(localId);
+      // For notes, we need to look up even deleted notes for sync operations
+      final note = await _database.getNoteByIdIncludingDeleted(localId);
       print('🔍 Looking up note ID $localId: found=${note != null}, supabaseId=${note?.supabaseId}');
       return note?.supabaseId;
     }

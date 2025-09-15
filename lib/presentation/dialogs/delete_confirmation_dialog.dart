@@ -5,7 +5,7 @@ import '../../core/theme/app_theme.dart';
 class DeleteConfirmationDialog extends StatefulWidget {
   final String title;
   final String message;
-  final VoidCallback onConfirm;
+  final Future<void> Function() onConfirm;
 
   const DeleteConfirmationDialog({
     super.key,
@@ -65,11 +65,14 @@ class _DeleteConfirmationDialogState extends State<DeleteConfirmationDialog> {
     });
 
     try {
-      widget.onConfirm();
+      print('🗑️ DeleteConfirmationDialog: Calling onConfirm callback');
+      await widget.onConfirm();
+      print('🗑️ DeleteConfirmationDialog: onConfirm completed');
       if (mounted) {
         Navigator.of(context).pop();
       }
     } catch (e) {
+      print('🗑️ DeleteConfirmationDialog: Error in onConfirm: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error: $e')),
