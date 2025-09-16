@@ -104,8 +104,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   void _initializeServices() async {
-    // Initialize sync service manager (handles auth state changes automatically)
-    ref.read(syncServiceManagerProvider);
+    // Initialize sync service (simple initialization)
+    ref.read(syncInitializationProvider);
 
     // Initialize and restore session
     final sessionNotifier = ref.read(sessionProvider.notifier);

@@ -34,117 +34,70 @@ final groupsRepositoryProvider = Provider<GroupsRepository>((ref) {
   return GroupsRepository(database, syncService);
 });
 
-// Sync service provider with proper initialization
+// Global sync service instance to prevent duplicates
+SyncService? _globalSyncService;
+String? _currentUserId;
+
+// Sync service provider with singleton pattern
 final syncServiceProvider = Provider<SyncService>((ref) {
   final database = ref.watch(databaseProvider);
-  final syncService = SyncService(database);
+  final userId = ref.watch(currentUserIdProvider);
 
-  // Connect status callbacks
-  syncService.onSyncStatusChanged = (isSyncing) {
-    ref.read(syncStatusProvider.notifier).state = isSyncing ? SyncStatus.syncing : SyncStatus.idle;
-  };
+  // Only recreate sync service if user changed or no service exists
+  if (_globalSyncService == null || _currentUserId != userId) {
+    // Dispose old sync service if it exists
+    _globalSyncService?.dispose();
 
-  syncService.onSyncErrorChanged = (error) {
-    ref.read(syncErrorProvider.notifier).state = error;
-    if (error != null) {
-      ref.read(syncStatusProvider.notifier).state = SyncStatus.error;
-    }
-  };
+    // Create new sync service for the current user
+    _globalSyncService = SyncService(database);
+    _currentUserId = userId;
+    _syncInitialized = false; // Reset initialization flag for new user
 
-  syncService.onLastSyncTimeChanged = (time) {
-    ref.read(lastSyncTimeProvider.notifier).state = time;
-    if (time != null) {
-      ref.read(syncStatusProvider.notifier).state = SyncStatus.success;
-    }
-  };
+    print('🔄 Created new sync service for user: $userId');
 
-  return syncService;
+    // Connect status callbacks
+    _globalSyncService!.onSyncStatusChanged = (isSyncing) {
+      ref.read(syncStatusProvider.notifier).state = isSyncing ? SyncStatus.syncing : SyncStatus.idle;
+    };
+
+    _globalSyncService!.onSyncErrorChanged = (error) {
+      ref.read(syncErrorProvider.notifier).state = error;
+      if (error != null) {
+        ref.read(syncStatusProvider.notifier).state = SyncStatus.error;
+      }
+    };
+
+    _globalSyncService!.onLastSyncTimeChanged = (time) {
+      ref.read(lastSyncTimeProvider.notifier).state = time;
+      if (time != null) {
+        ref.read(syncStatusProvider.notifier).state = SyncStatus.success;
+      }
+    };
+  }
+
+  return _globalSyncService!;
 });
 
-// Sync service manager that handles initialization and auth state changes
-final syncServiceManagerProvider = StateNotifierProvider<SyncServiceManager, SyncServiceState>((ref) {
+// Simple sync initialization - no manager, just direct initialization
+bool _syncInitialized = false;
+
+final syncInitializationProvider = FutureProvider<void>((ref) async {
+  final isAuthenticated = ref.watch(isAuthenticatedProvider);
   final syncService = ref.watch(syncServiceProvider);
-  final manager = SyncServiceManager(syncService);
 
-  // Listen to authentication state changes
-  ref.listen<bool>(isAuthenticatedProvider, (previous, next) {
-    manager.handleAuthStateChange(next);
-  });
-
-  // Initialize with current auth state
-  final isAuthenticated = ref.read(isAuthenticatedProvider);
-  manager.handleAuthStateChange(isAuthenticated);
-
-  return manager;
+  if (isAuthenticated && !_syncInitialized) {
+    print('🚀 Initializing sync service (one-time only)...');
+    await syncService.initialize();
+    await syncService.onAuthStateChanged(true);
+    _syncInitialized = true;
+    print('✅ Sync service initialized successfully');
+  } else if (!isAuthenticated && _syncInitialized) {
+    print('🔄 User signed out, disposing sync service...');
+    await syncService.onAuthStateChanged(false);
+    _syncInitialized = false;
+    print('✅ Sync service disposed');
+  }
 });
-
-class SyncServiceState {
-  final bool isInitialized;
-  final String? error;
-
-  const SyncServiceState({
-    this.isInitialized = false,
-    this.error,
-  });
-
-  SyncServiceState copyWith({
-    bool? isInitialized,
-    String? error,
-  }) {
-    return SyncServiceState(
-      isInitialized: isInitialized ?? this.isInitialized,
-      error: error,
-    );
-  }
-}
-
-class SyncServiceManager extends StateNotifier<SyncServiceState> {
-  final SyncService _syncService;
-  bool _wasAuthenticated = false;
-
-  SyncServiceManager(this._syncService) : super(const SyncServiceState());
-
-  void handleAuthStateChange(bool isAuthenticated) {
-    if (isAuthenticated && !_wasAuthenticated) {
-      // User just signed in, initialize sync service
-      _initializeSyncService();
-    } else if (!isAuthenticated && _wasAuthenticated) {
-      // User signed out, dispose sync service
-      _disposeSyncService();
-    }
-    _wasAuthenticated = isAuthenticated;
-  }
-
-  void _initializeSyncService() async {
-    if (!state.isInitialized) {
-      try {
-        await _syncService.initialize();
-        await _syncService.onAuthStateChanged(true); // User is authenticated
-        state = state.copyWith(isInitialized: true, error: null);
-        print('✅ Sync service initialized successfully');
-      } catch (e) {
-        state = state.copyWith(error: e.toString());
-        print('❌ Failed to initialize sync service: $e');
-      }
-    }
-  }
-
-  void _disposeSyncService() async {
-    if (state.isInitialized) {
-      try {
-        await _syncService.onAuthStateChanged(false); // User signed out
-        await _syncService.dispose();
-        state = state.copyWith(isInitialized: false, error: null);
-        print('🔄 Sync service disposed');
-      } catch (e) {
-        state = state.copyWith(error: e.toString());
-        print('❌ Failed to dispose sync service: $e');
-      }
-    }
-  }
-
-  SyncService get syncService => _syncService;
-}
 
 // User setup service provider
 final userSetupServiceProvider = Provider<UserSetupService>((ref) {

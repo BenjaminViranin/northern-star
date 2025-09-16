@@ -95,8 +95,8 @@ class SettingsTab extends ConsumerWidget {
                               onPressed: syncStatus == SyncStatus.syncing
                                   ? null
                                   : () async {
-                                      final syncServiceManager = ref.read(syncServiceManagerProvider.notifier);
-                                      await syncServiceManager.syncService.forceSync();
+                                      final syncService = ref.read(syncServiceProvider);
+                                      await syncService.forceSync();
                                     },
                               child: syncStatus == SyncStatus.syncing
                                   ? const SizedBox(
@@ -539,7 +539,7 @@ class SettingsTab extends ConsumerWidget {
 
   Future<Map<String, dynamic>> _getDebugInfo(WidgetRef ref) async {
     try {
-      final syncService = ref.read(syncServiceManagerProvider.notifier).syncService;
+      final syncService = ref.read(syncServiceProvider);
       return await syncService.getDebugInfo();
     } catch (e) {
       return {
