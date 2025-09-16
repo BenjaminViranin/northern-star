@@ -112,6 +112,9 @@ class NotesRepository {
       if (plainText != null) updateData['plain_text'] = plainText;
 
       await _addToSyncQueue('update', 'notes', id, updateData);
+
+      // Trigger immediate sync if sync service is available
+      await _triggerImmediateSync();
     }
 
     return success;
@@ -130,6 +133,9 @@ class NotesRepository {
     });
 
     print('🗑️ Added note deletion to sync queue');
+
+    // Trigger immediate sync if sync service is available
+    await _triggerImmediateSync();
   }
 
   Future<List<Note>> searchNotes(String query) async {
@@ -200,7 +206,10 @@ class NotesRepository {
 
   Future<void> _triggerImmediateSync() async {
     if (_syncService != null) {
+      print('🚀 Triggering immediate sync from notes repository...');
       await _syncService!.triggerImmediateSync();
+    } else {
+      print('⚠️ Sync service not available, cannot trigger immediate sync');
     }
   }
 }

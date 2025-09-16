@@ -102,6 +102,9 @@ class GroupsRepository {
       if (color != null) updateData['color'] = color;
 
       await _addToSyncQueue('update', 'groups', id, updateData);
+
+      // Trigger immediate sync if sync service is available
+      await _triggerImmediateSync();
     }
 
     return success;
@@ -131,6 +134,9 @@ class GroupsRepository {
       'is_deleted': true,
       'updated_at': DateTime.now().toIso8601String(),
     });
+
+    // Trigger immediate sync if sync service is available
+    await _triggerImmediateSync();
   }
 
   Future<void> _addToSyncQueue(String operation, String table, int localId, Map<String, dynamic> data) async {
@@ -144,7 +150,10 @@ class GroupsRepository {
 
   Future<void> _triggerImmediateSync() async {
     if (_syncService != null) {
+      print('🚀 Triggering immediate sync from groups repository...');
       await _syncService!.triggerImmediateSync();
+    } else {
+      print('⚠️ Sync service not available, cannot trigger immediate sync');
     }
   }
 }

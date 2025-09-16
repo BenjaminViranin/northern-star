@@ -178,7 +178,6 @@ class _RichTextEditorState extends ConsumerState<RichTextEditor> {
             ),
           ),
         ),
-        if (editorState.isSaving || editorState.hasUnsavedChanges) _buildStatusBar(editorState),
       ],
     );
   }
@@ -265,67 +264,5 @@ class _RichTextEditorState extends ConsumerState<RichTextEditor> {
       // If there's any error checking the format, assume it's not active
       return false;
     }
-  }
-
-  Widget _buildStatusBar(editor_provider.EditorState state) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      decoration: const BoxDecoration(
-        color: AppTheme.surfaceVariant,
-        border: Border(
-          top: BorderSide(color: AppTheme.border),
-        ),
-      ),
-      child: Row(
-        children: [
-          if (state.isSaving) ...[
-            const SizedBox(
-              width: 12,
-              height: 12,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                color: AppTheme.primaryTeal,
-              ),
-            ),
-            const SizedBox(width: 8),
-            const Text(
-              'Saving...',
-              style: TextStyle(
-                color: AppTheme.textSecondary,
-                fontSize: 12,
-              ),
-            ),
-          ] else if (state.hasUnsavedChanges) ...[
-            const Icon(
-              Icons.edit,
-              size: 12,
-              color: AppTheme.primaryTeal,
-            ),
-            const SizedBox(width: 8),
-            const Text(
-              'Unsaved changes',
-              style: TextStyle(
-                color: AppTheme.textSecondary,
-                fontSize: 12,
-              ),
-            ),
-          ] else ...[
-            const Icon(
-              Icons.check_circle,
-              size: 12,
-              color: Colors.green,
-            ),
-            const SizedBox(width: 8),
-            const Text(
-              'Saved',
-              style: TextStyle(
-                color: AppTheme.textSecondary,
-                fontSize: 12,
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
   }
 }
