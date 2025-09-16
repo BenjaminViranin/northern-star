@@ -431,15 +431,8 @@ class SidebarNavigation extends ConsumerWidget {
           child: InkWell(
             borderRadius: BorderRadius.circular(6),
             onTap: () {
-              // Toggle group selection for filtering
-              final currentGroupId = navigationState.selectedGroupId;
-              if (currentGroupId == group.id) {
-                // Deselect group (show all notes)
-                ref.read(navigationStateProvider.notifier).selectGroup(null);
-              } else {
-                // Select group (filter by this group)
-                ref.read(navigationStateProvider.notifier).selectGroup(group.id);
-              }
+              // Only expand/collapse the group, don't filter
+              ref.read(navigationStateProvider.notifier).toggleGroupExpanded(group.id);
             },
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),

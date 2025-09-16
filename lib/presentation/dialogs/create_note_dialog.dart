@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/app_theme.dart';
 import '../providers/database_provider.dart';
 import '../providers/editor_provider.dart';
+import '../screens/home_screen.dart';
 
 class CreateNoteDialog extends ConsumerStatefulWidget {
   const CreateNoteDialog({super.key});
@@ -16,6 +17,24 @@ class _CreateNoteDialogState extends ConsumerState<CreateNoteDialog> {
   final _titleController = TextEditingController();
   int? _selectedGroupId;
   bool _isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Set Uncategorized as default selection
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final groups = ref.read(groupsProvider);
+      groups.whenData((groupList) {
+        final uncategorizedGroup = groupList.firstWhere(
+          (group) => group.name == 'Uncategorized',
+          orElse: () => groupList.first,
+        );
+        setState(() {
+          _selectedGroupId = uncategorizedGroup.id;
+        });
+      });
+    });
+  }
 
   @override
   void dispose() {
@@ -136,8 +155,9 @@ class _CreateNoteDialogState extends ConsumerState<CreateNoteDialog> {
         groupId: _selectedGroupId!,
       );
 
-      // Set as current note
+      // Set as current note and select it in navigation
       ref.read(currentNoteIdProvider.notifier).state = noteId;
+      ref.read(navigationStateProvider.notifier).selectNote(noteId);
 
       if (mounted) {
         Navigator.of(context).pop();

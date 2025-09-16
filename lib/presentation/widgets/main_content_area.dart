@@ -65,6 +65,9 @@ class MainContentArea extends ConsumerWidget {
   }
 
   Widget _buildMobileNoteView(BuildContext context, WidgetRef ref, NavigationState navigationState) {
+    final noteId = navigationState.selectedNoteId!;
+    final noteAsync = ref.watch(noteByIdProvider(noteId));
+
     return Column(
       children: [
         // Add top padding for status bar since we removed AppBar
@@ -88,13 +91,57 @@ class MainContentArea extends ConsumerWidget {
                   ref.read(navigationStateProvider.notifier).selectNote(null);
                 },
               ),
-              const Expanded(
-                child: Text(
-                  'Edit Note',
-                  style: TextStyle(
-                    color: AppTheme.textPrimary,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
+              // Note title and last updated info (like desktop)
+              Expanded(
+                child: noteAsync.when(
+                  data: (note) {
+                    if (note == null) {
+                      return const Text(
+                        'Note not found',
+                        style: TextStyle(
+                          color: Colors.red,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      );
+                    }
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          note.title.isEmpty ? 'Untitled' : note.title,
+                          style: const TextStyle(
+                            color: AppTheme.textPrimary,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'Last modified: ${_formatDate(note.updatedAt)}',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: AppTheme.textSecondary,
+                          ),
+                        ),
+                      ],
+                    );
+                  },
+                  loading: () => const Text(
+                    'Loading...',
+                    style: TextStyle(
+                      color: AppTheme.textSecondary,
+                      fontSize: 16,
+                    ),
+                  ),
+                  error: (_, __) => const Text(
+                    'Error loading note',
+                    style: TextStyle(
+                      color: Colors.red,
+                      fontSize: 16,
+                    ),
                   ),
                 ),
               ),
@@ -250,25 +297,39 @@ class MainContentArea extends ConsumerWidget {
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
-                  // Group indicator
+                  // Group name and indicator
                   groups.when(
                     data: (groupsList) {
                       try {
                         final group = groupsList.firstWhere((g) => g.id == note.groupId);
-                        return Container(
-                          width: 12,
-                          height: 12,
-                          decoration: BoxDecoration(
-                            color: Color(int.parse(group.color.substring(1), radix: 16) + 0xFF000000),
-                            shape: BoxShape.circle,
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.1),
-                                blurRadius: 1,
-                                offset: const Offset(0, 0.5),
+                        return Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              group.name,
+                              style: TextStyle(
+                                color: Color(int.parse(group.color.substring(1), radix: 16) + 0xFF000000),
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
                               ),
-                            ],
-                          ),
+                            ),
+                            const SizedBox(width: 8),
+                            Container(
+                              width: 12,
+                              height: 12,
+                              decoration: BoxDecoration(
+                                color: Color(int.parse(group.color.substring(1), radix: 16) + 0xFF000000),
+                                shape: BoxShape.circle,
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.1),
+                                    blurRadius: 1,
+                                    offset: const Offset(0, 0.5),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
                         );
                       } catch (e) {
                         return const SizedBox.shrink();
@@ -719,7 +780,7 @@ class GroupsManagementView extends ConsumerWidget {
           children: [
             ListTile(
               leading: const Icon(Icons.edit, color: AppTheme.textPrimary),
-              title: const Text('Rename Group', style: TextStyle(color: AppTheme.textPrimary)),
+              title: null, // Remove text, show only icon
               onTap: () {
                 Navigator.pop(context);
                 _showRenameGroupDialog(context, ref, group);
@@ -727,7 +788,7 @@ class GroupsManagementView extends ConsumerWidget {
             ),
             ListTile(
               leading: const Icon(Icons.palette, color: AppTheme.textPrimary),
-              title: const Text('Change Color', style: TextStyle(color: AppTheme.textPrimary)),
+              title: null, // Remove text, show only icon
               onTap: () {
                 Navigator.pop(context);
                 _showChangeColorDialog(context, ref, group);
@@ -735,7 +796,7 @@ class GroupsManagementView extends ConsumerWidget {
             ),
             ListTile(
               leading: const Icon(Icons.delete, color: Colors.red),
-              title: const Text('Delete Group', style: TextStyle(color: Colors.red)),
+              title: null, // Remove text, show only icon
               onTap: () {
                 Navigator.pop(context);
                 _showDeleteGroupDialog(context, ref, group);
@@ -844,40 +905,37 @@ class GroupsManagementView extends ConsumerWidget {
               ),
               const SizedBox(height: 16),
 
-              // Action buttons
+              // Action buttons (icons only)
               Row(
                 children: [
                   Expanded(
-                    child: ElevatedButton.icon(
+                    child: ElevatedButton(
                       onPressed: () {
                         Navigator.pop(context);
                         _showRenameGroupDialog(context, ref, group);
                       },
-                      icon: const Icon(Icons.edit),
-                      label: const Text('Rename'),
+                      child: const Icon(Icons.edit),
                     ),
                   ),
                   const SizedBox(width: 8),
                   Expanded(
-                    child: ElevatedButton.icon(
+                    child: ElevatedButton(
                       onPressed: () {
                         Navigator.pop(context);
                         _showChangeColorDialog(context, ref, group);
                       },
-                      icon: const Icon(Icons.palette),
-                      label: const Text('Color'),
+                      child: const Icon(Icons.palette),
                     ),
                   ),
                   const SizedBox(width: 8),
                   Expanded(
-                    child: ElevatedButton.icon(
+                    child: ElevatedButton(
                       onPressed: () {
                         Navigator.pop(context);
                         _showDeleteGroupDialog(context, ref, group);
                       },
-                      icon: const Icon(Icons.delete),
-                      label: const Text('Delete'),
                       style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                      child: const Icon(Icons.delete),
                     ),
                   ),
                 ],

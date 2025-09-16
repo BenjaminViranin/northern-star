@@ -8,7 +8,6 @@ import '../dialogs/create_group_dialog.dart';
 import '../dialogs/rename_note_dialog.dart';
 import '../dialogs/move_note_dialog.dart';
 import '../dialogs/delete_confirmation_dialog.dart';
-import '../dialogs/edit_group_dialog.dart';
 
 // Provider for tracking which group's notes are being viewed
 final viewingGroupNotesProvider = StateProvider<int?>((ref) => null);
@@ -89,46 +88,6 @@ class GroupsTab extends ConsumerWidget {
                                         overflow: TextOverflow.ellipsis,
                                       ),
                                     ),
-                                    if (group.name != 'Uncategorized')
-                                      PopupMenuButton(
-                                        icon: const Icon(
-                                          Icons.more_vert,
-                                          color: AppTheme.textSecondary,
-                                          size: 16,
-                                        ),
-                                        itemBuilder: (context) => const [
-                                          PopupMenuItem(
-                                            value: 'edit',
-                                            child: Row(
-                                              children: [
-                                                Icon(Icons.edit, size: 16),
-                                                SizedBox(width: 8),
-                                                Text('Edit'),
-                                              ],
-                                            ),
-                                          ),
-                                          PopupMenuItem(
-                                            value: 'delete',
-                                            child: Row(
-                                              children: [
-                                                Icon(Icons.delete, size: 16, color: Colors.red),
-                                                SizedBox(width: 8),
-                                                Text('Delete', style: TextStyle(color: Colors.red)),
-                                              ],
-                                            ),
-                                          ),
-                                        ],
-                                        onSelected: (value) {
-                                          switch (value) {
-                                            case 'edit':
-                                              _showEditGroupDialog(context, group);
-                                              break;
-                                            case 'delete':
-                                              _showDeleteGroupDialog(context, ref, group);
-                                              break;
-                                          }
-                                        },
-                                      ),
                                   ],
                                 ),
                                 const Spacer(),
@@ -207,27 +166,6 @@ class GroupsTab extends ConsumerWidget {
     showDialog(
       context: context,
       builder: (context) => const CreateGroupDialog(),
-    );
-  }
-
-  void _showEditGroupDialog(BuildContext context, group) {
-    showDialog(
-      context: context,
-      builder: (context) => EditGroupDialog(group: group),
-    );
-  }
-
-  void _showDeleteGroupDialog(BuildContext context, WidgetRef ref, group) {
-    showDialog(
-      context: context,
-      builder: (context) => DeleteConfirmationDialog(
-        title: 'Delete Group',
-        message: 'Are you sure you want to delete "${group.name}"? All notes in this group will be moved to Uncategorized.',
-        onConfirm: () async {
-          final repository = ref.read(groupsRepositoryProvider);
-          await repository.deleteGroup(group.id);
-        },
-      ),
     );
   }
 
