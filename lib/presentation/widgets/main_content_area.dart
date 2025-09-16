@@ -36,21 +36,15 @@ class MainContentArea extends ConsumerWidget {
     final screenWidth = MediaQuery.of(context).size.width;
     final isMobile = screenWidth < AppConstants.mobileBreakpoint;
 
-    print('📱 Screen width: $screenWidth, Mobile breakpoint: ${AppConstants.mobileBreakpoint}, isMobile: $isMobile');
-    print('📱 Selected note ID: ${navigationState.selectedNoteId}');
-
     if (navigationState.selectedNoteId == null) {
       if (isMobile) {
-        print('📱 Showing mobile notes list');
         return _buildMobileNotesList(context, ref, navigationState);
       } else {
-        print('📱 Showing empty note state (desktop)');
         return _buildEmptyNoteState(context);
       }
     }
 
     if (isMobile) {
-      print('📱 Showing mobile note view for note ${navigationState.selectedNoteId}');
       return _buildMobileNoteView(context, ref, navigationState);
     }
 
@@ -90,10 +84,8 @@ class MainContentArea extends ConsumerWidget {
               IconButton(
                 icon: const Icon(Icons.arrow_back, color: AppTheme.textPrimary),
                 onPressed: () {
-                  print('🔙 Mobile back button pressed - clearing selected note');
                   // Clear the selected note to return to notes list
                   ref.read(navigationStateProvider.notifier).selectNote(null);
-                  print('🔙 Selected note cleared, should return to notes list');
                 },
               ),
               const Expanded(

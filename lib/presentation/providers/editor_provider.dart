@@ -8,6 +8,7 @@ import 'package:rxdart/rxdart.dart';
 
 import '../../core/constants/app_constants.dart';
 import '../../core/services/markdown_converter.dart';
+import '../../data/database/database.dart';
 import 'database_provider.dart';
 
 // Editor state for a specific note
@@ -53,7 +54,12 @@ class EditorNotifier extends StateNotifier<EditorState> {
   final int? noteId;
 
   StreamSubscription? _debounceSubscription;
+  StreamSubscription? _noteUpdateSubscription;
   final _contentSubject = BehaviorSubject<String>();
+  bool _isUpdatingFromDatabase = false;
+  bool _hasEditorFocus = false;
+  DateTime? _lastRefreshTime;
+  String? _lastKnownContent;
 
   EditorNotifier(this.ref, this.noteId)
       : super(EditorState(
@@ -63,6 +69,7 @@ class EditorNotifier extends StateNotifier<EditorState> {
     state.controller.addListener(_onContentChanged);
     _initializeEditor();
     _setupAutosave();
+    _setupDatabaseListener();
   }
 
   /// Creates a basic controller with proper document initialization
@@ -78,6 +85,7 @@ class EditorNotifier extends StateNotifier<EditorState> {
   @override
   void dispose() {
     _debounceSubscription?.cancel();
+    _noteUpdateSubscription?.cancel();
     _contentSubject.close();
     state.controller.removeListener(_onContentChanged);
     state.controller.dispose();
@@ -145,8 +153,96 @@ class EditorNotifier extends StateNotifier<EditorState> {
     _debounceSubscription = _contentSubject.debounceTime(AppConstants.autosaveDebounce).listen(_saveContent);
   }
 
+  void _setupDatabaseListener() {
+    if (noteId == null) return;
+
+    // Listen to database changes for this specific note
+    // Use a longer interval when editor has focus to avoid interrupting typing
+    _noteUpdateSubscription = Stream.periodic(const Duration(seconds: 2)).asyncMap((_) async {
+      try {
+        final repository = ref.read(notesRepositoryProvider);
+        return await repository.getNoteById(noteId!);
+      } catch (e) {
+        return null;
+      }
+    }).distinct((previous, next) {
+      // Only emit when content actually changes
+      if (previous?.content != next?.content) {
+        return false; // Different content, emit
+      }
+      return true; // Same content, don't emit
+    }).listen((note) {
+      if (note != null && !_isUpdatingFromDatabase && !state.isSaving) {
+        // Only update if editor doesn't have focus or if content is significantly different
+        final shouldUpdate = !_hasEditorFocus || _shouldForceUpdate(note.content);
+        if (shouldUpdate) {
+          _updateEditorFromDatabase(note);
+        }
+      }
+    });
+  }
+
+  bool _shouldForceUpdate(String newContent) {
+    // Force update if content is very different or if it's been a while since last refresh
+    if (_lastKnownContent == null) return true;
+
+    final now = DateTime.now();
+    final timeSinceLastRefresh = _lastRefreshTime != null ? now.difference(_lastRefreshTime!) : const Duration(hours: 1);
+
+    // Force update if it's been more than 30 seconds since last refresh
+    if (timeSinceLastRefresh.inSeconds > 30) return true;
+
+    // Force update if content length difference is significant (more than 50 characters)
+    final lengthDiff = (newContent.length - _lastKnownContent!.length).abs();
+    return lengthDiff > 50;
+  }
+
+  void _updateEditorFromDatabase(Note note) {
+    _isUpdatingFromDatabase = true;
+
+    try {
+      // Parse the content from the database
+      List<dynamic> deltaOps;
+      if (note.content.isNotEmpty) {
+        try {
+          final deltaJson = jsonDecode(note.content);
+          deltaOps = deltaJson['ops'] ?? [];
+        } catch (e) {
+          // Fallback - create a simple text delta
+          deltaOps = [
+            {'insert': '${note.plainText}\n'}
+          ];
+        }
+      } else {
+        deltaOps = [
+          {'insert': '\n'}
+        ];
+      }
+
+      // Create new delta and update the controller
+      final delta = Delta.fromJson(deltaOps);
+      state.controller.document = Document.fromDelta(delta);
+
+      // Update tracking variables
+      _lastKnownContent = note.content;
+      _lastRefreshTime = DateTime.now();
+
+      // Update the saved content state
+      state = state.copyWith(
+        lastSavedContent: note.content,
+        hasUnsavedChanges: false,
+      );
+
+      print('🔄 Updated editor from database for note ${note.id}');
+    } catch (e) {
+      print('❌ Error updating editor from database: $e');
+    } finally {
+      _isUpdatingFromDatabase = false;
+    }
+  }
+
   void _onContentChanged() {
-    if (!state.isLoading && !state.isSaving) {
+    if (!state.isLoading && !state.isSaving && !_isUpdatingFromDatabase) {
       final content = jsonEncode(state.controller.document.toDelta().toJson());
       final hasChanges = content != state.lastSavedContent;
 
@@ -208,6 +304,60 @@ class EditorNotifier extends StateNotifier<EditorState> {
       final content = jsonEncode(state.controller.document.toDelta().toJson());
       await _saveContent(content);
     }
+  }
+
+  // Focus management methods
+  void onEditorFocusChanged(bool hasFocus) {
+    _hasEditorFocus = hasFocus;
+
+    // If editor lost focus, check for updates immediately
+    if (!hasFocus) {
+      _checkForUpdatesImmediately();
+    }
+  }
+
+  // Manual refresh method for lifecycle events
+  Future<void> refreshFromDatabase() async {
+    if (noteId == null) return;
+
+    try {
+      final repository = ref.read(notesRepositoryProvider);
+      final note = await repository.getNoteById(noteId!);
+
+      if (note != null) {
+        // Force update regardless of focus state
+        final currentContent = jsonEncode(state.controller.document.toDelta().toJson());
+        if (note.content != currentContent && note.content != state.lastSavedContent) {
+          _updateEditorFromDatabase(note);
+        }
+      }
+    } catch (e) {
+      print('❌ Error refreshing from database: $e');
+    }
+  }
+
+  void _checkForUpdatesImmediately() {
+    if (noteId == null) return;
+
+    // Cancel current subscription and create a new one that checks immediately
+    _noteUpdateSubscription?.cancel();
+
+    // Check once immediately, then resume normal polling
+    Future.delayed(const Duration(milliseconds: 100), () async {
+      try {
+        final repository = ref.read(notesRepositoryProvider);
+        final note = await repository.getNoteById(noteId!);
+
+        if (note != null && !_isUpdatingFromDatabase && !state.isSaving) {
+          _updateEditorFromDatabase(note);
+        }
+      } catch (e) {
+        print('❌ Error in immediate check: $e');
+      }
+
+      // Resume normal database listener
+      _setupDatabaseListener();
+    });
   }
 
   // Formatting methods

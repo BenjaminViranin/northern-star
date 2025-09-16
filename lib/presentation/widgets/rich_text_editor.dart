@@ -21,13 +21,19 @@ class RichTextEditor extends ConsumerStatefulWidget {
   ConsumerState<RichTextEditor> createState() => _RichTextEditorState();
 }
 
-class _RichTextEditorState extends ConsumerState<RichTextEditor> {
+class _RichTextEditorState extends ConsumerState<RichTextEditor> with WidgetsBindingObserver {
   QuillController? _lastController;
   final FocusNode _focusNode = FocusNode();
 
   @override
   void initState() {
     super.initState();
+
+    // Add app lifecycle observer
+    WidgetsBinding.instance.addObserver(this);
+
+    // Setup focus listener
+    _focusNode.addListener(_onFocusChanged);
 
     // Setup session state management
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -36,14 +42,47 @@ class _RichTextEditorState extends ConsumerState<RichTextEditor> {
       if (!widget.readOnly) {
         _focusNode.requestFocus();
       }
+      // Initial refresh when editor is created
+      _refreshEditorContent();
     });
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _lastController?.removeListener(_onSelectionChanged);
+    _focusNode.removeListener(_onFocusChanged);
     _focusNode.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+
+    // Refresh editor content when app becomes active
+    if (state == AppLifecycleState.resumed) {
+      _refreshEditorContent();
+    }
+  }
+
+  void _onFocusChanged() {
+    if (widget.noteId != null) {
+      // Notify the editor provider about focus changes
+      ref.read(editor_provider.editorProvider(widget.noteId).notifier).onEditorFocusChanged(_focusNode.hasFocus);
+
+      // If editor gained focus, refresh content
+      if (_focusNode.hasFocus) {
+        _refreshEditorContent();
+      }
+    }
+  }
+
+  void _refreshEditorContent() {
+    if (widget.noteId != null) {
+      // Trigger a refresh from the database
+      ref.read(editor_provider.editorProvider(widget.noteId).notifier).refreshFromDatabase();
+    }
   }
 
   void _setupSessionManagement() {
@@ -59,6 +98,24 @@ class _RichTextEditorState extends ConsumerState<RichTextEditor> {
     // Force rebuild when selection changes to update toolbar states
     if (mounted) {
       setState(() {});
+    }
+  }
+
+  @override
+  void didUpdateWidget(RichTextEditor oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    // If note ID changed, refresh the content
+    if (oldWidget.noteId != widget.noteId) {
+      // Remove focus listener from old focus node if needed
+      if (oldWidget.noteId != null) {
+        ref.read(editor_provider.editorProvider(oldWidget.noteId).notifier).onEditorFocusChanged(false);
+      }
+
+      // Setup for new note
+      if (widget.noteId != null) {
+        _refreshEditorContent();
+      }
     }
   }
 
