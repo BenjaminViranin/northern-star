@@ -58,20 +58,20 @@ class AppConstants {
     'Uncategorized',
   ];
 
-  // Group Colors (12 diverse colors)
+  // Group Colors (12 truly distinct colors)
   static const List<String> groupColors = [
-    '#14b8a6', // Teal
-    '#3b82f6', // Blue
-    '#8b5cf6', // Purple
-    '#ec4899', // Pink
-    '#ef4444', // Red
-    '#f97316', // Orange
-    '#eab308', // Yellow
-    '#22c55e', // Green
-    '#06b6d4', // Cyan
-    '#6366f1', // Indigo
-    '#84cc16', // Lime
-    '#f59e0b', // Amber
+    '#3B82F6', // Blue
+    '#10B981', // Green
+    '#F59E0B', // Amber/Orange
+    '#EF4444', // Red
+    '#8B5CF6', // Purple
+    '#06B6D4', // Cyan
+    '#FBBF24', // Yellow
+    '#059669', // Emerald (distinct from green)
+    '#EC4899', // Pink
+    '#8B4513', // Brown
+    '#6B7280', // Gray
+    '#14B8A6', // Teal
   ];
 
   // Development and debugging

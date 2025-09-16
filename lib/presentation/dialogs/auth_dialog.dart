@@ -165,6 +165,11 @@ class _AuthDialogState extends ConsumerState<AuthDialog> {
           );
 
           if (response.user != null) {
+            print('✅ User created successfully: ${response.user!.id}');
+
+            // Wait a moment for the database provider to switch to the new user
+            await Future.delayed(const Duration(milliseconds: 500));
+
             // Set up user data (create default groups, etc.)
             final userSetupService = ref.read(userSetupServiceProvider);
             await userSetupService.setupUserData();
@@ -194,10 +199,8 @@ class _AuthDialogState extends ConsumerState<AuthDialog> {
         );
 
         if (response.user != null) {
-          // Set up user data (ensure default groups exist, etc.)
-          final userSetupService = ref.read(userSetupServiceProvider);
-          await userSetupService.setupUserData();
-
+          // For sign-in, we don't need to set up user data since it should already exist
+          // The sync service will handle pulling any server data
           if (context.mounted) {
             Navigator.of(context).pop();
             ScaffoldMessenger.of(context).showSnackBar(

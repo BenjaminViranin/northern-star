@@ -17,6 +17,7 @@ class SyncService {
   StreamSubscription? _connectivitySubscription;
   RealtimeChannel? _realtimeChannel;
   bool _isSyncing = false;
+  bool _isInitialized = false;
 
   // Callbacks for status updates
   Function(bool)? onSyncStatusChanged;
@@ -25,16 +26,33 @@ class SyncService {
 
   SyncService(this._database);
 
+  /// Triggers immediate sync when new items are added to the queue
+  Future<void> triggerImmediateSync() async {
+    if (!_isSyncing && SupabaseConfig.isAuthenticated) {
+      print('⚡ Triggering immediate sync for new queue items...');
+      _performSync();
+    }
+  }
+
   Future<void> initialize() async {
-    // Listen to connectivity changes
+    if (_isInitialized) {
+      print('⚠️ Sync service already initialized, skipping...');
+      return;
+    }
+
+    _isInitialized = true;
+    print('🔄 Initializing sync service...');
+
+    // Listen to connectivity changes for immediate sync when connection is restored
     _connectivitySubscription = _connectivity.onConnectivityChanged.listen((result) {
       if (result != ConnectivityResult.none && !_isSyncing) {
+        print('📶 Network connection restored, syncing immediately...');
         _performSync();
       }
     });
 
-    // Set up periodic sync (more frequent for better responsiveness)
-    _syncTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+    // Set up periodic sync (less frequent since we sync immediately on changes)
+    _syncTimer = Timer.periodic(const Duration(minutes: 5), (_) {
       if (!_isSyncing) {
         _performSync();
       }
@@ -47,16 +65,21 @@ class SyncService {
       // Check for pending operations and sync immediately
       final pendingOps = await _database.getPendingSyncOperations();
       if (pendingOps.isNotEmpty && !_isSyncing) {
-        print('🔄 Found ${pendingOps.length} pending operations on startup, syncing...');
+        print('🔄 Found ${pendingOps.length} pending operations on startup, syncing immediately...');
         _performSync();
       }
     }
   }
 
   Future<void> dispose() async {
+    print('🔄 Disposing sync service...');
+    _isInitialized = false;
     _syncTimer?.cancel();
     await _connectivitySubscription?.cancel();
     await _realtimeChannel?.unsubscribe();
+    _syncTimer = null;
+    _connectivitySubscription = null;
+    _realtimeChannel = null;
   }
 
   /// Called when authentication state changes to set up or tear down realtime subscriptions
@@ -340,24 +363,32 @@ class SyncService {
 
     // Get existing queue operations to avoid duplicates
     final existingOps = await _database.getPendingSyncOperations();
-    final existingGroupOps = existingOps.where((op) => op.entityTable == 'groups').map((op) => op.localId).toSet();
-    final existingNoteOps = existingOps.where((op) => op.entityTable == 'notes').map((op) => op.localId).toSet();
+    final existingGroupOps = existingOps.where((op) => op.entityTable == 'groups').map((op) => '${op.operation}_${op.localId}').toSet();
+    final existingNoteOps = existingOps.where((op) => op.entityTable == 'notes').map((op) => '${op.operation}_${op.localId}').toSet();
 
     // Add missing group operations to queue
     for (final group in unsyncedGroups) {
-      if (!existingGroupOps.contains(group.id)) {
-        final operation = group.supabaseId == null ? 'create' : 'update';
+      final operation = group.supabaseId == null ? 'create' : 'update';
+      final operationKey = '${operation}_${group.id}';
+
+      if (!existingGroupOps.contains(operationKey)) {
         await _addGroupToSyncQueue(group, operation);
         print('➕ Added group to sync queue: ${group.name} ($operation)');
+      } else {
+        print('⏭️ Skipping duplicate group operation: ${group.name} ($operation)');
       }
     }
 
     // Add missing note operations to queue
     for (final note in unsyncedNotes) {
-      if (!existingNoteOps.contains(note.id)) {
-        final operation = note.supabaseId == null ? 'create' : 'update';
+      final operation = note.supabaseId == null ? 'create' : 'update';
+      final operationKey = '${operation}_${note.id}';
+
+      if (!existingNoteOps.contains(operationKey)) {
         await _addNoteToSyncQueue(note, operation);
         print('➕ Added note to sync queue: ${note.title} ($operation)');
+      } else {
+        print('⏭️ Skipping duplicate note operation: ${note.title} ($operation)');
       }
     }
   }
@@ -756,8 +787,7 @@ class SyncService {
 
         if (existingGroup == null) {
           // Check if there's a local group with the same name that needs to be linked
-          final matchingLocalGroup =
-              localGroups.where((g) => g.name == serverGroup['name'] && g.supabaseId == null && g.needsSync == true).firstOrNull;
+          final matchingLocalGroup = localGroups.where((g) => g.name == serverGroup['name'] && g.supabaseId == null).firstOrNull;
 
           if (matchingLocalGroup != null) {
             // Update existing local group with Supabase ID instead of creating new one

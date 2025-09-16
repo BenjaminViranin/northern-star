@@ -8,20 +8,30 @@ import '../../data/services/sync_service.dart';
 import '../../data/services/user_setup_service.dart';
 import '../../core/config/supabase_config.dart';
 
-// Database instance provider
+// Database instance provider - user-specific
 final databaseProvider = Provider<AppDatabase>((ref) {
-  return AppDatabase();
+  final userId = ref.watch(currentUserIdProvider);
+
+  if (userId != null) {
+    // Create user-specific database
+    return AppDatabase.forUser(userId);
+  } else {
+    // No user logged in - return default database (will be empty)
+    return AppDatabase();
+  }
 });
 
 // Repository providers
 final notesRepositoryProvider = Provider<NotesRepository>((ref) {
   final database = ref.watch(databaseProvider);
-  return NotesRepository(database);
+  final syncService = ref.watch(syncServiceProvider);
+  return NotesRepository(database, syncService);
 });
 
 final groupsRepositoryProvider = Provider<GroupsRepository>((ref) {
   final database = ref.watch(databaseProvider);
-  return GroupsRepository(database);
+  final syncService = ref.watch(syncServiceProvider);
+  return GroupsRepository(database, syncService);
 });
 
 // Sync service provider with proper initialization
@@ -176,6 +186,16 @@ final authStateProvider = StreamProvider<User?>((ref) {
   return SupabaseConfig.client.auth.onAuthStateChange.map((data) => data.session?.user);
 });
 
+// Current user ID provider
+final currentUserIdProvider = Provider<String?>((ref) {
+  final authState = ref.watch(authStateProvider);
+  return authState.when(
+    data: (user) => user?.id,
+    loading: () => null,
+    error: (_, __) => null,
+  );
+});
+
 // Convenience provider for checking if user is authenticated
 final isAuthenticatedProvider = Provider<bool>((ref) {
   final authState = ref.watch(authStateProvider);
@@ -185,6 +205,50 @@ final isAuthenticatedProvider = Provider<bool>((ref) {
     error: (_, __) => false,
   );
 });
+
+// User session manager that handles cleanup on logout
+final userSessionManagerProvider = Provider<UserSessionManager>((ref) {
+  return UserSessionManager(ref);
+});
+
+class UserSessionManager {
+  final Ref _ref;
+  String? _currentUserId;
+
+  UserSessionManager(this._ref) {
+    // Listen to auth state changes
+    _ref.listen(currentUserIdProvider, (previous, next) {
+      if (previous != next) {
+        _handleUserChange(previous, next);
+      }
+    });
+  }
+
+  void _handleUserChange(String? previousUserId, String? currentUserId) {
+    print('🔄 User session changed: $previousUserId -> $currentUserId');
+
+    if (previousUserId != null && currentUserId != previousUserId) {
+      // User signed out or different user signed in
+      _cleanupPreviousUserSession(previousUserId);
+    }
+
+    _currentUserId = currentUserId;
+  }
+
+  void _cleanupPreviousUserSession(String userId) {
+    print('🧹 Cleaning up session for user: $userId');
+
+    // Invalidate all providers to force recreation with new user context
+    _ref.invalidate(databaseProvider);
+    _ref.invalidate(notesRepositoryProvider);
+    _ref.invalidate(groupsRepositoryProvider);
+    _ref.invalidate(syncServiceProvider);
+    _ref.invalidate(selectedGroupProvider);
+    _ref.invalidate(searchQueryProvider);
+
+    print('✅ Session cleanup completed');
+  }
+}
 
 // Current user provider
 final currentUserProvider = Provider<User?>((ref) {

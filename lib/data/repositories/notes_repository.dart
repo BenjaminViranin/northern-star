@@ -4,13 +4,15 @@ import 'package:flutter_quill/flutter_quill.dart';
 import 'package:uuid/uuid.dart';
 
 import '../database/database.dart';
+import '../services/sync_service.dart';
 import '../../core/services/markdown_converter.dart';
 
 class NotesRepository {
   final AppDatabase _database;
+  final SyncService? _syncService;
   final _uuid = const Uuid();
 
-  NotesRepository(this._database);
+  NotesRepository(this._database, [this._syncService]);
 
   // Local operations (always work offline)
   Future<List<Note>> getAllNotes() async {
@@ -58,6 +60,9 @@ class NotesRepository {
       'created_at': now.toIso8601String(),
       'updated_at': now.toIso8601String(),
     });
+
+    // Trigger immediate sync if sync service is available
+    await _triggerImmediateSync();
 
     return id;
   }
@@ -191,5 +196,11 @@ class NotesRepository {
     ));
 
     print('📤 Successfully added to sync queue');
+  }
+
+  Future<void> _triggerImmediateSync() async {
+    if (_syncService != null) {
+      await _syncService!.triggerImmediateSync();
+    }
   }
 }

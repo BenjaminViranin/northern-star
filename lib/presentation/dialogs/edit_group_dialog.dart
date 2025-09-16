@@ -86,9 +86,14 @@ class _EditGroupDialogState extends ConsumerState<EditGroupDialog> {
                     decoration: BoxDecoration(
                       color: Color(int.parse(color.substring(1), radix: 16) + 0xFF000000),
                       shape: BoxShape.circle,
-                      border: isSelected
-                          ? Border.all(color: AppTheme.primaryTeal, width: 3)
-                          : Border.all(color: AppTheme.border),
+                      border: isSelected ? Border.all(color: AppTheme.primaryTeal, width: 3) : Border.all(color: AppTheme.border),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.1),
+                          blurRadius: 2,
+                          offset: const Offset(0, 1),
+                        ),
+                      ],
                     ),
                     child: isSelected
                         ? const Icon(
@@ -125,7 +130,7 @@ class _EditGroupDialogState extends ConsumerState<EditGroupDialog> {
 
   Future<void> _updateGroup() async {
     final newName = _nameController.text.trim();
-    
+
     if (newName.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please enter a group name')),

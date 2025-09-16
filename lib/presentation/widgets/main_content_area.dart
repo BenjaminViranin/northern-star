@@ -44,10 +44,84 @@ class MainContentArea extends ConsumerWidget {
       }
     }
 
+    if (isMobile) {
+      return _buildMobileNoteView(context, ref, navigationState);
+    }
+
     return Column(
       children: [
         // Note header with title and actions
         _buildNoteHeader(context, ref, navigationState),
+
+        // Note editor
+        Expanded(
+          child: RichTextEditor(
+            noteId: navigationState.selectedNoteId,
+            readOnly: false,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMobileNoteView(BuildContext context, WidgetRef ref, NavigationState navigationState) {
+    return Column(
+      children: [
+        // Add top padding for status bar since we removed AppBar
+        SizedBox(height: MediaQuery.of(context).padding.top),
+
+        // Mobile note header with back button
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: const BoxDecoration(
+            color: AppTheme.surfaceDark,
+            border: Border(
+              bottom: BorderSide(color: AppTheme.border, width: 1),
+            ),
+          ),
+          child: Row(
+            children: [
+              IconButton(
+                icon: const Icon(Icons.arrow_back, color: AppTheme.textPrimary),
+                onPressed: () {
+                  ref.read(navigationStateProvider.notifier).selectNote(null);
+                },
+              ),
+              const Expanded(
+                child: Text(
+                  'Edit Note',
+                  style: TextStyle(
+                    color: AppTheme.textPrimary,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              // Note actions menu
+              PopupMenuButton<String>(
+                icon: const Icon(Icons.more_vert, color: AppTheme.textPrimary),
+                itemBuilder: (context) => [
+                  const PopupMenuItem(
+                    value: 'rename',
+                    child: Text('Rename', style: TextStyle(color: AppTheme.textPrimary)),
+                  ),
+                  const PopupMenuItem(
+                    value: 'move',
+                    child: Text('Move to Group', style: TextStyle(color: AppTheme.textPrimary)),
+                  ),
+                  const PopupMenuItem(
+                    value: 'delete',
+                    child: Text('Delete', style: TextStyle(color: Colors.red)),
+                  ),
+                ],
+                onSelected: (value) {
+                  // Handle note actions
+                  _handleMobileNoteAction(context, ref, value, navigationState.selectedNoteId!);
+                },
+              ),
+            ],
+          ),
+        ),
 
         // Note editor
         Expanded(
@@ -84,7 +158,10 @@ class MainContentArea extends ConsumerWidget {
 
         return Column(
           children: [
-            // Search and filter bar
+            // Add top padding for status bar since we removed AppBar
+            SizedBox(height: MediaQuery.of(context).padding.top),
+
+            // Search and filter bar - always visible
             Container(
               padding: const EdgeInsets.all(16),
               decoration: const BoxDecoration(
@@ -183,6 +260,13 @@ class MainContentArea extends ConsumerWidget {
                           decoration: BoxDecoration(
                             color: Color(int.parse(group.color.substring(1), radix: 16) + 0xFF000000),
                             shape: BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.1),
+                                blurRadius: 1,
+                                offset: const Offset(0, 0.5),
+                              ),
+                            ],
                           ),
                         );
                       } catch (e) {
@@ -480,6 +564,61 @@ class MainContentArea extends ConsumerWidget {
       ),
     );
   }
+
+  void _handleMobileNoteAction(BuildContext context, WidgetRef ref, String action, int noteId) async {
+    switch (action) {
+      case 'rename':
+        // TODO: Implement rename functionality
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Rename functionality coming soon')),
+        );
+        break;
+      case 'move':
+        // TODO: Implement move functionality
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Move functionality coming soon')),
+        );
+        break;
+      case 'delete':
+        final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            backgroundColor: AppTheme.surfaceDark,
+            title: const Text('Delete Note', style: TextStyle(color: AppTheme.textPrimary)),
+            content: const Text(
+              'Are you sure you want to delete this note? This action cannot be undone.',
+              style: TextStyle(color: AppTheme.textSecondary),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('Cancel'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                style: TextButton.styleFrom(foregroundColor: Colors.red),
+                child: const Text('Delete'),
+              ),
+            ],
+          ),
+        );
+
+        if (confirmed == true) {
+          final notesRepository = ref.read(notesRepositoryProvider);
+          await notesRepository.deleteNote(noteId);
+
+          // Navigate back to notes list
+          ref.read(navigationStateProvider.notifier).selectNote(null);
+
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Note deleted successfully')),
+            );
+          }
+        }
+        break;
+    }
+  }
 }
 
 // Simplified groups management view without tab controller dependency
@@ -672,6 +811,13 @@ class GroupsManagementView extends ConsumerWidget {
                     decoration: BoxDecoration(
                       color: Color(int.parse(group.color.substring(1), radix: 16) + 0xFF000000),
                       shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.1),
+                          blurRadius: 2,
+                          offset: const Offset(0, 1),
+                        ),
+                      ],
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -809,18 +955,8 @@ class GroupsManagementView extends ConsumerWidget {
   }
 
   void _showChangeColorDialog(BuildContext context, WidgetRef ref, dynamic group) {
-    final List<String> colors = [
-      '#FF6B6B', // Red
-      '#4ECDC4', // Teal (current primary)
-      '#45B7D1', // Blue
-      '#96CEB4', // Green
-      '#FFEAA7', // Yellow
-      '#DDA0DD', // Plum
-      '#98D8C8', // Mint
-      '#F7DC6F', // Light Yellow
-      '#BB8FCE', // Light Purple
-      '#85C1E9', // Light Blue
-    ];
+    // Use the same colors as defined in AppConstants
+    const List<String> colors = AppConstants.groupColors;
 
     showDialog(
       context: context,
@@ -876,6 +1012,13 @@ class GroupsManagementView extends ConsumerWidget {
                     color: Color(int.parse(color.substring(1), radix: 16) + 0xFF000000),
                     shape: BoxShape.circle,
                     border: isSelected ? Border.all(color: AppTheme.textPrimary, width: 3) : Border.all(color: AppTheme.border, width: 1),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.1),
+                        blurRadius: 2,
+                        offset: const Offset(0, 1),
+                      ),
+                    ],
                   ),
                   child: isSelected ? const Icon(Icons.check, color: Colors.white, size: 20) : null,
                 ),

@@ -103,6 +103,13 @@ class NotesTab extends ConsumerWidget {
                                       decoration: BoxDecoration(
                                         color: Color(int.parse(group.color.substring(1), radix: 16) + 0xFF000000),
                                         shape: BoxShape.circle,
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: Colors.black.withOpacity(0.1),
+                                            blurRadius: 1,
+                                            offset: const Offset(0, 0.5),
+                                          ),
+                                        ],
                                       ),
                                     ),
                                     const SizedBox(width: 8),

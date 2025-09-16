@@ -6,6 +6,7 @@ import 'core/config/supabase_config.dart';
 import 'core/services/session_persistence_service.dart';
 import 'core/services/window_manager_service.dart';
 import 'presentation/screens/home_screen.dart';
+import 'presentation/providers/database_provider.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -22,11 +23,14 @@ void main() async {
   runApp(const ProviderScope(child: NorthernStarApp()));
 }
 
-class NorthernStarApp extends StatelessWidget {
+class NorthernStarApp extends ConsumerWidget {
   const NorthernStarApp({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    // Initialize user session manager
+    ref.watch(userSessionManagerProvider);
+
     return MaterialApp(
       title: 'Northern Star',
       theme: AppTheme.darkTheme,

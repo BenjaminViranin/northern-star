@@ -13,6 +13,7 @@ part 'database.g.dart';
 @DriftDatabase(tables: [Groups, Notes, SyncQueue, LocalHistory, AppSettings])
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
+  AppDatabase.forUser(String userId) : super(_openConnectionForUser(userId));
   AppDatabase._(QueryExecutor executor) : super(executor);
 
   @override
@@ -23,30 +24,13 @@ class AppDatabase extends _$AppDatabase {
     return MigrationStrategy(
       onCreate: (Migrator m) async {
         await m.createAll();
-        await _seedDefaultGroups();
+        // Don't seed default groups here - they will be created by Supabase trigger
+        // and synced down when user authenticates
       },
       onUpgrade: (Migrator m, int from, int to) async {
         // Handle future migrations here
       },
     );
-  }
-
-  /// Seed default groups on first run
-  Future<void> _seedDefaultGroups() async {
-    const defaultGroups = [
-      {'name': 'Work', 'color': '#14b8a6'},
-      {'name': 'Personal', 'color': '#0d9488'},
-      {'name': 'Ideas', 'color': '#0f766e'},
-      {'name': 'Tasks', 'color': '#115e59'},
-      {'name': 'Uncategorized', 'color': '#134e4a'},
-    ];
-
-    for (final group in defaultGroups) {
-      await into(groups).insert(GroupsCompanion(
-        name: Value(group['name']!),
-        color: Value(group['color']!),
-      ));
-    }
   }
 
   // Group operations
@@ -113,12 +97,47 @@ class AppDatabase extends _$AppDatabase {
       value: Value(value),
     ));
   }
+
+  /// Clear all user data from the database (for logout)
+  Future<void> clearAllUserData() async {
+    await transaction(() async {
+      await delete(notes).go();
+      await delete(groups).go();
+      await delete(syncQueue).go();
+      await delete(localHistory).go();
+      await delete(appSettings).go();
+    });
+  }
+
+  /// Get the database file path for debugging
+  Future<String> getDatabasePath() async {
+    final dbFolder = await getApplicationDocumentsDirectory();
+    return p.join(dbFolder.path, 'northern_star.db');
+  }
 }
 
 LazyDatabase _openConnection() {
   return LazyDatabase(() async {
     final dbFolder = await getApplicationDocumentsDirectory();
     final file = File(p.join(dbFolder.path, 'northern_star.db'));
+
+    if (Platform.isAndroid) {
+      await applyWorkaroundToOpenSqlite3OnOldAndroidVersions();
+    }
+
+    final cachebase = (await getTemporaryDirectory()).path;
+    sqlite3.tempDirectory = cachebase;
+
+    return NativeDatabase.createInBackground(file);
+  });
+}
+
+LazyDatabase _openConnectionForUser(String userId) {
+  return LazyDatabase(() async {
+    final dbFolder = await getApplicationDocumentsDirectory();
+    // Create user-specific database file
+    final sanitizedUserId = userId.replaceAll(RegExp(r'[^a-zA-Z0-9_-]'), '_');
+    final file = File(p.join(dbFolder.path, 'northern_star_$sanitizedUserId.db'));
 
     if (Platform.isAndroid) {
       await applyWorkaroundToOpenSqlite3OnOldAndroidVersions();

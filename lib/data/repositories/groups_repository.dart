@@ -2,12 +2,14 @@ import 'dart:convert';
 import 'package:drift/drift.dart';
 
 import '../database/database.dart';
+import '../services/sync_service.dart';
 import '../../core/constants/app_constants.dart';
 
 class GroupsRepository {
   final AppDatabase _database;
+  final SyncService? _syncService;
 
-  GroupsRepository(this._database);
+  GroupsRepository(this._database, [this._syncService]);
 
   // Local operations (always work offline)
   Future<List<Group>> getAllGroups() async {
@@ -67,6 +69,9 @@ class GroupsRepository {
       'created_at': now.toIso8601String(),
       'updated_at': now.toIso8601String(),
     });
+
+    // Trigger immediate sync if sync service is available
+    await _triggerImmediateSync();
 
     return id;
   }
@@ -135,5 +140,11 @@ class GroupsRepository {
       localId: Value(localId),
       data: Value(jsonEncode(data)),
     ));
+  }
+
+  Future<void> _triggerImmediateSync() async {
+    if (_syncService != null) {
+      await _syncService!.triggerImmediateSync();
+    }
   }
 }

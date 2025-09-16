@@ -163,7 +163,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
     return Scaffold(
       backgroundColor: AppTheme.backgroundDark,
-      appBar: _buildMobileAppBar(context, navigationState),
+      // Remove AppBar for mobile - content will handle its own headers
       body: const MainContentArea(),
       bottomNavigationBar: _buildBottomNavigationBar(context, navigationState),
       floatingActionButton: _buildMobileFloatingActionButton(context, navigationState),

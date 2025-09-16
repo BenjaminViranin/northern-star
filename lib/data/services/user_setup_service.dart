@@ -7,43 +7,46 @@ class UserSetupService {
 
   UserSetupService(this._database);
 
-  /// Ensures default groups exist for the current user
-  /// This is a fallback in case the database trigger fails
+  /// Creates default groups for new users
+  /// This is called when a user first signs up to provide them with starter groups
   Future<void> ensureDefaultGroups() async {
     try {
-      // Check if user already has groups
+      // Check if user already has groups locally
       final existingGroups = await _database.getAllGroups();
 
       if (existingGroups.isNotEmpty) {
         // User already has groups, no need to create defaults
+        print('✅ User already has ${existingGroups.length} groups, skipping default group creation');
         return;
       }
 
-      // Create default groups with sync enabled
+      print('📝 Creating default groups for new user...');
+
+      // Create default groups with distinct colors and sync enabled
       final defaultGroups = [
         GroupsCompanion.insert(
           name: 'Work',
-          color: '#14b8a6',
+          color: '#3B82F6', // Blue
           needsSync: const Value(true),
         ),
         GroupsCompanion.insert(
           name: 'Personal',
-          color: '#0d9488',
+          color: '#10B981', // Green
           needsSync: const Value(true),
         ),
         GroupsCompanion.insert(
           name: 'Ideas',
-          color: '#0f766e',
+          color: '#FBBF24', // Yellow
           needsSync: const Value(true),
         ),
         GroupsCompanion.insert(
           name: 'Tasks',
-          color: '#115e59',
+          color: '#EF4444', // Red
           needsSync: const Value(true),
         ),
         GroupsCompanion.insert(
           name: 'Uncategorized',
-          color: '#134e4a',
+          color: '#6B7280', // Gray
           needsSync: const Value(true),
         ),
       ];
@@ -65,8 +68,9 @@ class UserSetupService {
         ));
       }
 
-      // Default groups created successfully
+      print('✅ Created ${defaultGroups.length} default groups');
     } catch (e) {
+      print('❌ Failed to create default groups: $e');
       // Failed to create default groups - this is a fallback mechanism
       // In production, this would use a proper logging framework
     }
@@ -75,14 +79,19 @@ class UserSetupService {
   /// Sets up user data after successful authentication
   Future<void> setupUserData() async {
     try {
+      print('🚀 Starting user setup process...');
+
       // Ensure default groups exist
       await ensureDefaultGroups();
+
+      print('✅ User setup completed successfully');
 
       // Could add other setup tasks here in the future
       // - Sync data from server
       // - Initialize user preferences
       // - etc.
     } catch (e) {
+      print('❌ User setup failed: $e');
       // Don't throw - setup failures shouldn't prevent app usage
       // In production, this would use a proper logging framework
     }

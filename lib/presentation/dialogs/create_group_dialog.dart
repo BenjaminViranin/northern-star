@@ -88,7 +88,13 @@ class _CreateGroupDialogState extends ConsumerState<CreateGroupDialog> {
                                     spreadRadius: 2,
                                   )
                                 ]
-                              : null,
+                              : [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.1),
+                                    blurRadius: 2,
+                                    offset: const Offset(0, 1),
+                                  ),
+                                ],
                         ),
                         child: isSelected
                             ? const Icon(
@@ -130,7 +136,13 @@ class _CreateGroupDialogState extends ConsumerState<CreateGroupDialog> {
                                     spreadRadius: 2,
                                   )
                                 ]
-                              : null,
+                              : [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.1),
+                                    blurRadius: 2,
+                                    offset: const Offset(0, 1),
+                                  ),
+                                ],
                         ),
                         child: isSelected
                             ? const Icon(
