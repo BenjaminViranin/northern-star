@@ -40,13 +40,14 @@ class NavigationState {
     String? searchQuery,
     int? selectedGroupId,
     int? selectedNoteId,
+    bool clearSelectedNoteId = false,
   }) {
     return NavigationState(
       selectedSection: selectedSection ?? this.selectedSection,
       groupExpandedState: groupExpandedState ?? this.groupExpandedState,
       searchQuery: searchQuery ?? this.searchQuery,
       selectedGroupId: selectedGroupId ?? this.selectedGroupId,
-      selectedNoteId: selectedNoteId ?? this.selectedNoteId,
+      selectedNoteId: clearSelectedNoteId ? null : (selectedNoteId ?? this.selectedNoteId),
     );
   }
 }
@@ -73,7 +74,14 @@ class NavigationStateNotifier extends StateNotifier<NavigationState> {
   }
 
   void selectNote(int? noteId) {
-    state = state.copyWith(selectedNoteId: noteId);
+    print('🔧 NavigationStateNotifier.selectNote called with noteId: $noteId');
+    print('🔧 Current state selectedNoteId: ${state.selectedNoteId}');
+    if (noteId == null) {
+      state = state.copyWith(clearSelectedNoteId: true);
+    } else {
+      state = state.copyWith(selectedNoteId: noteId);
+    }
+    print('🔧 New state selectedNoteId: ${state.selectedNoteId}');
   }
 
   bool isGroupExpanded(int groupId) {
