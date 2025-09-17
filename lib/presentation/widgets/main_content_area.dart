@@ -7,6 +7,8 @@ import '../screens/home_screen.dart';
 import '../widgets/rich_text_editor.dart';
 import '../widgets/settings_tab.dart';
 import '../providers/database_provider.dart';
+import '../dialogs/rename_note_dialog.dart';
+import '../dialogs/move_note_dialog.dart';
 
 class MainContentArea extends ConsumerWidget {
   const MainContentArea({super.key});
@@ -572,7 +574,7 @@ class MainContentArea extends ConsumerWidget {
               title: const Text('Rename', style: TextStyle(color: AppTheme.textPrimary)),
               onTap: () {
                 Navigator.pop(context);
-                // TODO: Show rename dialog
+                showRenameNoteDialog(context, ref, note);
               },
             ),
             ListTile(
@@ -580,7 +582,7 @@ class MainContentArea extends ConsumerWidget {
               title: const Text('Move to Group', style: TextStyle(color: AppTheme.textPrimary)),
               onTap: () {
                 Navigator.pop(context);
-                // TODO: Show move dialog
+                showMoveNoteDialog(context, ref, note);
               },
             ),
             ListTile(
@@ -632,18 +634,21 @@ class MainContentArea extends ConsumerWidget {
   }
 
   void _handleMobileNoteAction(BuildContext context, WidgetRef ref, String action, int noteId) async {
+    final notesRepository = ref.read(notesRepositoryProvider);
+    final note = await notesRepository.getNoteById(noteId);
+
+    if (note == null) return;
+
     switch (action) {
       case 'rename':
-        // TODO: Implement rename functionality
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Rename functionality coming soon')),
-        );
+        if (context.mounted) {
+          showRenameNoteDialog(context, ref, note);
+        }
         break;
       case 'move':
-        // TODO: Implement move functionality
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Move functionality coming soon')),
-        );
+        if (context.mounted) {
+          showMoveNoteDialog(context, ref, note);
+        }
         break;
       case 'delete':
         final confirmed = await showDialog<bool>(
@@ -746,10 +751,6 @@ class GroupsManagementView extends ConsumerWidget {
                           );
                         },
                       ),
-                      trailing: IconButton(
-                        icon: const Icon(Icons.more_vert, color: AppTheme.textSecondary),
-                        onPressed: () => _showGroupActions(context, ref, group),
-                      ),
                       onTap: () => _showGroupDetailView(context, ref, group),
                     ),
                   );
@@ -765,45 +766,6 @@ class GroupsManagementView extends ConsumerWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  void _showGroupActions(BuildContext context, WidgetRef ref, dynamic group) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: AppTheme.surfaceDark,
-      builder: (context) => Container(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.edit, color: AppTheme.textPrimary),
-              title: null, // Remove text, show only icon
-              onTap: () {
-                Navigator.pop(context);
-                _showRenameGroupDialog(context, ref, group);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.palette, color: AppTheme.textPrimary),
-              title: null, // Remove text, show only icon
-              onTap: () {
-                Navigator.pop(context);
-                _showChangeColorDialog(context, ref, group);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.delete, color: Colors.red),
-              title: null, // Remove text, show only icon
-              onTap: () {
-                Navigator.pop(context);
-                _showDeleteGroupDialog(context, ref, group);
-              },
-            ),
-          ],
-        ),
       ),
     );
   }
@@ -989,6 +951,42 @@ class GroupsManagementView extends ConsumerWidget {
                                   maxLines: 2,
                                   overflow: TextOverflow.ellipsis,
                                 ),
+                                trailing: PopupMenuButton<String>(
+                                  icon: const Icon(Icons.more_vert, color: AppTheme.textSecondary),
+                                  itemBuilder: (context) => [
+                                    const PopupMenuItem(
+                                      value: 'rename',
+                                      child: Row(
+                                        children: [
+                                          Icon(Icons.edit, size: 16),
+                                          SizedBox(width: 8),
+                                          Text('Rename'),
+                                        ],
+                                      ),
+                                    ),
+                                    const PopupMenuItem(
+                                      value: 'move',
+                                      child: Row(
+                                        children: [
+                                          Icon(Icons.folder, size: 16),
+                                          SizedBox(width: 8),
+                                          Text('Move to Group'),
+                                        ],
+                                      ),
+                                    ),
+                                    const PopupMenuItem(
+                                      value: 'delete',
+                                      child: Row(
+                                        children: [
+                                          Icon(Icons.delete, size: 16, color: Colors.red),
+                                          SizedBox(width: 8),
+                                          Text('Delete', style: TextStyle(color: Colors.red)),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                  onSelected: (value) => _handleGroupDetailNoteAction(context, ref, note, value),
+                                ),
                                 onTap: () {
                                   Navigator.pop(context);
                                   ref.read(navigationStateProvider.notifier).selectNote(note.id);
@@ -1157,4 +1155,63 @@ class GroupsManagementView extends ConsumerWidget {
       return '${date.day}/${date.month}/${date.year}';
     }
   }
+
+  void _handleGroupDetailNoteAction(BuildContext context, WidgetRef ref, dynamic note, String action) async {
+    final notesRepository = ref.read(notesRepositoryProvider);
+
+    switch (action) {
+      case 'rename':
+        if (context.mounted) {
+          showRenameNoteDialog(context, ref, note);
+        }
+        break;
+      case 'move':
+        if (context.mounted) {
+          showMoveNoteDialog(context, ref, note);
+        }
+        break;
+      case 'delete':
+        final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            backgroundColor: AppTheme.surfaceDark,
+            title: const Text('Delete Note', style: TextStyle(color: AppTheme.textPrimary)),
+            content: Text(
+              'Are you sure you want to delete "${note.title.isEmpty ? 'Untitled' : note.title}"?',
+              style: const TextStyle(color: AppTheme.textSecondary),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancel'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context, true),
+                style: TextButton.styleFrom(foregroundColor: Colors.red),
+                child: const Text('Delete'),
+              ),
+            ],
+          ),
+        );
+
+        if (confirmed == true && context.mounted) {
+          await notesRepository.deleteNote(note.id);
+        }
+        break;
+    }
+  }
+}
+
+void showRenameNoteDialog(BuildContext context, WidgetRef ref, dynamic note) {
+  showDialog(
+    context: context,
+    builder: (context) => RenameNoteDialog(note: note),
+  );
+}
+
+void showMoveNoteDialog(BuildContext context, WidgetRef ref, dynamic note) {
+  showDialog(
+    context: context,
+    builder: (context) => MoveNoteDialog(note: note),
+  );
 }
