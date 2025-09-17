@@ -38,10 +38,7 @@ class _RichTextEditorState extends ConsumerState<RichTextEditor> with WidgetsBin
     // Setup session state management
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _setupSessionManagement();
-      // Auto-focus if not read-only
-      if (!widget.readOnly) {
-        _focusNode.requestFocus();
-      }
+      // Don't auto-focus on mobile for consultation mode
       // Initial refresh when editor is created
       _refreshEditorContent();
     });
@@ -190,46 +187,40 @@ class _RichTextEditorState extends ConsumerState<RichTextEditor> with WidgetsBin
       children: [
         if (!widget.readOnly) _buildToolbar(context, ref),
         Expanded(
-          child: Container(
-            decoration: BoxDecoration(
-              border: Border.all(color: Colors.grey.withOpacity(0.3)),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: GestureDetector(
-              onTapDown: (details) {
-                if (!widget.readOnly) {
-                  _focusNode.requestFocus();
-                  // Move cursor to end if document is empty or very short
-                  final doc = editorState.controller.document;
-                  if (doc.length <= 1) {
-                    editorState.controller.moveCursorToEnd();
-                  }
+          child: GestureDetector(
+            onTapDown: (details) {
+              if (!widget.readOnly) {
+                _focusNode.requestFocus();
+                // Move cursor to end if document is empty or very short
+                final doc = editorState.controller.document;
+                if (doc.length <= 1) {
+                  editorState.controller.moveCursorToEnd();
                 }
-              },
-              child: QuillProvider(
-                configurations: QuillConfigurations(
-                  controller: editorState.controller,
-                ),
-                child: QuillEditor.basic(
-                  focusNode: _focusNode,
-                  configurations: QuillEditorConfigurations(
-                    scrollable: true,
-                    padding: const EdgeInsets.all(16),
-                    autoFocus: !widget.readOnly,
-                    placeholder: 'Start writing...',
-                    readOnly: widget.readOnly,
-                    showCursor: true,
-                    enableInteractiveSelection: true,
-                    expands: false,
-                    keyboardAppearance: Brightness.light,
-                    onTapUp: (details, p1) {
-                      // Always ensure focus when tapping
-                      if (!widget.readOnly) {
-                        _focusNode.requestFocus();
-                      }
-                      return false;
-                    },
-                  ),
+              }
+            },
+            child: QuillProvider(
+              configurations: QuillConfigurations(
+                controller: editorState.controller,
+              ),
+              child: QuillEditor.basic(
+                focusNode: _focusNode,
+                configurations: QuillEditorConfigurations(
+                  scrollable: true,
+                  padding: const EdgeInsets.all(16),
+                  autoFocus: false,
+                  placeholder: 'Start writing...',
+                  readOnly: widget.readOnly,
+                  showCursor: true,
+                  enableInteractiveSelection: true,
+                  expands: false,
+                  keyboardAppearance: Brightness.light,
+                  onTapUp: (details, p1) {
+                    // Always ensure focus when tapping
+                    if (!widget.readOnly) {
+                      _focusNode.requestFocus();
+                    }
+                    return false;
+                  },
                 ),
               ),
             ),

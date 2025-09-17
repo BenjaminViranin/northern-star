@@ -86,13 +86,6 @@ class MainContentArea extends ConsumerWidget {
           ),
           child: Row(
             children: [
-              IconButton(
-                icon: const Icon(Icons.arrow_back, color: AppTheme.textPrimary),
-                onPressed: () {
-                  // Clear the selected note to return to notes list
-                  ref.read(navigationStateProvider.notifier).selectNote(null);
-                },
-              ),
               // Note title and last updated info (like desktop)
               Expanded(
                 child: noteAsync.when(

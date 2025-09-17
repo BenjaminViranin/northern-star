@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -200,6 +201,45 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         navigationNotifier.selectGroup(uiState.selectedGroupId);
       }
     }
+
+    // Check if split view should be restored (Windows only)
+    if (mounted) {
+      _checkAndRestoreSplitView();
+    }
+  }
+
+  void _checkAndRestoreSplitView() async {
+    // Only on Windows
+    if (!Platform.isWindows) return;
+
+    // Check if split view was previously active
+    final splitViewEnabled = AppStateService.getSplitViewEnabled();
+    final splitViewNoteIds = AppStateService.getSplitViewNoteIds();
+
+    // Also check session state as fallback
+    final sessionState = ref.read(sessionProvider);
+    final sessionSplitViewActive = sessionState.splitViewState?.isActive ?? false;
+
+    // Only restore if split view was explicitly enabled AND has notes
+    final shouldRestore = splitViewEnabled && splitViewNoteIds.isNotEmpty;
+    final shouldRestoreFromSession = sessionSplitViewActive && (sessionState.splitViewState?.noteIds.isNotEmpty == true);
+
+    if (shouldRestore || shouldRestoreFromSession) {
+      print('  -> Restoring split view');
+      // Small delay to ensure the main screen is fully loaded
+      await Future.delayed(const Duration(milliseconds: 500));
+
+      if (mounted) {
+        // Navigate to split view
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => const SplitViewScreen(),
+          ),
+        );
+      }
+    } else {
+      print('  -> NOT restoring split view');
+    }
   }
 
   @override
@@ -322,6 +362,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       return null;
     }
 
+    // If a note is selected (editing mode), show return button
+    if (navigationState.selectedNoteId != null) {
+      return FloatingActionButton(
+        backgroundColor: AppTheme.primaryTeal,
+        foregroundColor: Colors.white,
+        onPressed: () {
+          // Return to notes list
+          ref.read(navigationStateProvider.notifier).selectNote(null);
+        },
+        child: const Icon(Icons.arrow_back),
+      );
+    }
+
+    // Otherwise show add button
     return FloatingActionButton(
       backgroundColor: AppTheme.primaryTeal,
       foregroundColor: Colors.white,

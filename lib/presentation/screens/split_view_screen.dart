@@ -34,8 +34,6 @@ class _SplitViewScreenState extends ConsumerState<SplitViewScreen> {
 
   @override
   void dispose() {
-    // Save split view state when closing
-    _saveSplitViewState();
     super.dispose();
   }
 
@@ -79,6 +77,23 @@ class _SplitViewScreenState extends ConsumerState<SplitViewScreen> {
     AppStateService.saveSplitViewNoteIds(splitNotes);
   }
 
+  void _saveSplitViewStateOnClose() {
+    final splitNotes = ref.read(splitViewNotesProvider);
+    final splitCount = ref.read(splitViewCountProvider);
+
+    // Save split view state but mark as inactive so it doesn't auto-restore
+    ref.read(sessionProvider.notifier).saveSplitViewState(
+          isActive: false,
+          paneCount: splitCount,
+          noteIds: splitNotes,
+        );
+
+    // Mark as disabled in app state service
+    AppStateService.saveSplitViewEnabled(false);
+    AppStateService.saveSplitViewPaneCount(splitCount);
+    AppStateService.saveSplitViewNoteIds(splitNotes);
+  }
+
   @override
   Widget build(BuildContext context) {
     // Only show split view on Windows
@@ -110,6 +125,14 @@ class _SplitViewScreenState extends ConsumerState<SplitViewScreen> {
             appBar: AppBar(
               title: const Text('Split View'),
               backgroundColor: AppTheme.surfaceDark,
+              leading: IconButton(
+                icon: const Icon(Icons.arrow_back),
+                onPressed: () {
+                  // Save state as inactive before closing
+                  _saveSplitViewStateOnClose();
+                  Navigator.of(context).pop();
+                },
+              ),
               actions: [
                 // Split count selector
                 PopupMenuButton<int>(

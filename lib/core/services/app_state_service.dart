@@ -41,7 +41,7 @@ class AppStateService {
   }
 
   static bool getSplitViewEnabled() {
-    return _prefs?.getBool(_splitViewEnabledKey) ?? true; // Default to enabled
+    return _prefs?.getBool(_splitViewEnabledKey) ?? false; // Default to disabled
   }
 
   // Split view pane count
