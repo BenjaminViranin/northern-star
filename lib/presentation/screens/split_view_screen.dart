@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../core/services/keyboard_shortcuts_service.dart';
+import '../../core/services/app_state_service.dart';
 import '../providers/database_provider.dart';
 import '../providers/session_provider.dart';
 import '../widgets/rich_text_editor.dart';
@@ -39,15 +40,25 @@ class _SplitViewScreenState extends ConsumerState<SplitViewScreen> {
   }
 
   void _restoreSplitViewState() {
-    final sessionState = ref.read(sessionProvider);
-    if (sessionState.splitViewState != null) {
-      final splitViewState = sessionState.splitViewState!;
+    // Try to restore from app state service first
+    final appStatePaneCount = AppStateService.getSplitViewPaneCount();
+    final appStateNoteIds = AppStateService.getSplitViewNoteIds();
 
-      // Restore pane count
-      ref.read(splitViewCountProvider.notifier).state = splitViewState.paneCount;
+    if (appStateNoteIds.isNotEmpty) {
+      ref.read(splitViewCountProvider.notifier).state = appStatePaneCount;
+      ref.read(splitViewNotesProvider.notifier).state = appStateNoteIds;
+    } else {
+      // Fallback to session state
+      final sessionState = ref.read(sessionProvider);
+      if (sessionState.splitViewState != null) {
+        final splitViewState = sessionState.splitViewState!;
 
-      // Restore note assignments
-      ref.read(splitViewNotesProvider.notifier).state = splitViewState.noteIds;
+        // Restore pane count
+        ref.read(splitViewCountProvider.notifier).state = splitViewState.paneCount;
+
+        // Restore note assignments
+        ref.read(splitViewNotesProvider.notifier).state = splitViewState.noteIds;
+      }
     }
   }
 
@@ -55,11 +66,17 @@ class _SplitViewScreenState extends ConsumerState<SplitViewScreen> {
     final splitNotes = ref.read(splitViewNotesProvider);
     final splitCount = ref.read(splitViewCountProvider);
 
+    // Save to both session provider and app state service
     ref.read(sessionProvider.notifier).saveSplitViewState(
           isActive: true,
           paneCount: splitCount,
           noteIds: splitNotes,
         );
+
+    // Also save to app state service for persistence
+    AppStateService.saveSplitViewEnabled(true);
+    AppStateService.saveSplitViewPaneCount(splitCount);
+    AppStateService.saveSplitViewNoteIds(splitNotes);
   }
 
   @override

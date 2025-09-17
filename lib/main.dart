@@ -5,6 +5,7 @@ import 'core/theme/app_theme.dart';
 import 'core/config/supabase_config.dart';
 import 'core/services/session_persistence_service.dart';
 import 'core/services/window_manager_service.dart';
+import 'core/services/app_state_service.dart';
 import 'presentation/screens/home_screen.dart';
 import 'presentation/providers/database_provider.dart';
 
@@ -16,6 +17,9 @@ void main() async {
 
   // Initialize session persistence
   await SessionPersistenceService.initialize();
+
+  // Initialize app state service
+  await AppStateService.initialize();
 
   // Initialize window manager
   await WindowManagerService.initialize();

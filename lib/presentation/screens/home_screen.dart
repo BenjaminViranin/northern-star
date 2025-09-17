@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/services/keyboard_shortcuts_service.dart';
+import '../../core/services/app_state_service.dart';
 import '../providers/session_provider.dart';
 import '../widgets/sidebar_navigation.dart';
 import '../widgets/main_content_area.dart';
@@ -53,24 +54,72 @@ class NavigationState {
 }
 
 class NavigationStateNotifier extends StateNotifier<NavigationState> {
-  NavigationStateNotifier() : super(const NavigationState());
+  NavigationStateNotifier() : super(const NavigationState()) {
+    _initializeFromPersistedState();
+  }
+
+  Future<void> _initializeFromPersistedState() async {
+    await AppStateService.initialize();
+
+    // Restore state from persistence
+    final selectedSection = AppStateService.getSelectedSection();
+    final selectedGroupId = AppStateService.getSelectedGroupId();
+    final searchQuery = AppStateService.getSearchQuery();
+    final expandedGroups = AppStateService.getExpandedGroups();
+    final lastNoteId = AppStateService.getLastNoteId();
+
+    // Convert expanded groups set to map
+    final expandedGroupsMap = <int, bool>{};
+    for (final groupId in expandedGroups) {
+      expandedGroupsMap[groupId] = true;
+    }
+
+    // Convert section string to enum
+    NavigationSection section = NavigationSection.notes;
+    if (selectedSection != null) {
+      switch (selectedSection) {
+        case 'notes':
+          section = NavigationSection.notes;
+          break;
+        case 'groups':
+          section = NavigationSection.groups;
+          break;
+        case 'settings':
+          section = NavigationSection.settings;
+          break;
+      }
+    }
+
+    // Update state with restored values
+    state = NavigationState(
+      selectedSection: section,
+      groupExpandedState: expandedGroupsMap,
+      searchQuery: searchQuery,
+      selectedGroupId: selectedGroupId,
+      selectedNoteId: lastNoteId,
+    );
+  }
 
   void selectSection(NavigationSection section) {
     state = state.copyWith(selectedSection: section);
+    _persistState();
   }
 
   void toggleGroupExpanded(int groupId) {
     final newExpandedState = Map<int, bool>.from(state.groupExpandedState);
     newExpandedState[groupId] = !(newExpandedState[groupId] ?? true);
     state = state.copyWith(groupExpandedState: newExpandedState);
+    _persistState();
   }
 
   void setSearchQuery(String query) {
     state = state.copyWith(searchQuery: query);
+    _persistState();
   }
 
   void selectGroup(int? groupId) {
     state = state.copyWith(selectedGroupId: groupId);
+    _persistState();
   }
 
   void selectNote(int? noteId) {
@@ -79,6 +128,7 @@ class NavigationStateNotifier extends StateNotifier<NavigationState> {
     } else {
       state = state.copyWith(selectedNoteId: noteId);
     }
+    _persistState();
   }
 
   bool isGroupExpanded(int groupId) {
@@ -87,6 +137,20 @@ class NavigationStateNotifier extends StateNotifier<NavigationState> {
 
   void restoreFromSession(NavigationState sessionState) {
     state = sessionState;
+    _persistState();
+  }
+
+  void _persistState() {
+    // Save current state to persistence
+    final sectionString = state.selectedSection.toString().split('.').last;
+    AppStateService.saveSelectedSection(sectionString);
+    AppStateService.saveSelectedGroupId(state.selectedGroupId);
+    AppStateService.saveSearchQuery(state.searchQuery);
+    AppStateService.saveLastNoteId(state.selectedNoteId);
+
+    // Save expanded groups
+    final expandedGroups = state.groupExpandedState.entries.where((entry) => entry.value == true).map((entry) => entry.key).toSet();
+    AppStateService.saveExpandedGroups(expandedGroups);
   }
 }
 

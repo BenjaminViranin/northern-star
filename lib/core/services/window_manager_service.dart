@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'session_persistence_service.dart';
+import 'app_state_service.dart';
 import '../../presentation/providers/session_provider.dart';
 
 /// Service for managing window state on desktop platforms
@@ -16,12 +17,21 @@ class WindowManagerService {
   static Future<void> initialize() async {
     if (!Platform.isWindows) return;
 
-    // Initialize mock window state for development
-    final windowState = SessionPersistenceService.restoreWindowState();
-    if (windowState != null) {
-      MockWindowState.currentSize = windowState.size;
-      MockWindowState.currentPosition = windowState.position;
-      MockWindowState.isMaximized = windowState.isMaximized;
+    // Try to restore from AppStateService first, then fallback to SessionPersistenceService
+    final appStateSize = AppStateService.getWindowSize();
+    final appStatePosition = AppStateService.getWindowPosition();
+
+    if (appStateSize != null && appStatePosition != null) {
+      MockWindowState.currentSize = appStateSize;
+      MockWindowState.currentPosition = appStatePosition;
+    } else {
+      // Fallback to session persistence
+      final windowState = SessionPersistenceService.restoreWindowState();
+      if (windowState != null) {
+        MockWindowState.currentSize = windowState.size;
+        MockWindowState.currentPosition = windowState.position;
+        MockWindowState.isMaximized = windowState.isMaximized;
+      }
     }
 
     // In a production app with window_manager package, you would:
@@ -38,6 +48,10 @@ class WindowManagerService {
     required bool isMaximized,
   }) async {
     if (!Platform.isWindows) return;
+
+    // Save to both services for redundancy
+    await AppStateService.saveWindowSize(size);
+    await AppStateService.saveWindowPosition(position);
 
     await SessionPersistenceService.saveWindowState(
       size: size,
