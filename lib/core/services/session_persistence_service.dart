@@ -30,7 +30,8 @@ class SessionPersistenceService {
       'height': size.height,
       'x': position.dx,
       'y': position.dy,
-      'isMaximized': isMaximized,
+      // Drop maximize/minimize persistence
+      'isMaximized': false,
       'timestamp': DateTime.now().millisecondsSinceEpoch,
     };
 
@@ -49,7 +50,8 @@ class SessionPersistenceService {
       return WindowState(
         size: Size(state['width']?.toDouble() ?? 800.0, state['height']?.toDouble() ?? 600.0),
         position: Offset(state['x']?.toDouble() ?? 100.0, state['y']?.toDouble() ?? 100.0),
-        isMaximized: state['isMaximized'] ?? false,
+        // Ignore stored maximize/minimize state
+        isMaximized: false,
       );
     } catch (e) {
       return null;

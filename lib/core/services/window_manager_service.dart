@@ -30,30 +30,42 @@ class WindowManagerService {
         final appStatePosition = AppStateService.getWindowPosition();
 
         if (appStateSize != null && appStatePosition != null) {
-          appWindow.size = appStateSize;
-          appWindow.position = appStatePosition;
+          final Size size = (appStateSize.width < 200 || appStateSize.height < 200) ? getDefaultWindowSize() : appStateSize;
+          final Offset position = (appStatePosition.dx < 0 || appStatePosition.dy < 0) ? getDefaultWindowPosition() : appStatePosition;
+
+          appWindow.restore();
+          appWindow.size = size;
+          appWindow.position = position;
 
           // Update mock state for compatibility
-          MockWindowState.currentSize = appStateSize;
-          MockWindowState.currentPosition = appStatePosition;
+          MockWindowState.currentSize = size;
+          MockWindowState.currentPosition = position;
+          MockWindowState.isMaximized = false;
         } else {
           // Fallback to session persistence
           final windowState = SessionPersistenceService.restoreWindowState();
           if (windowState != null) {
-            appWindow.size = windowState.size;
-            appWindow.position = windowState.position;
-            if (windowState.isMaximized) {
-              appWindow.maximize();
-            }
+            final Size size = (windowState.size.width < 200 || windowState.size.height < 200) ? getDefaultWindowSize() : windowState.size;
+            final Offset position =
+                (windowState.position.dx < 0 || windowState.position.dy < 0) ? getDefaultWindowPosition() : windowState.position;
+
+            appWindow.restore();
+            appWindow.size = size;
+            appWindow.position = position;
 
             // Update mock state for compatibility
-            MockWindowState.currentSize = windowState.size;
-            MockWindowState.currentPosition = windowState.position;
-            MockWindowState.isMaximized = windowState.isMaximized;
+            MockWindowState.currentSize = size;
+            MockWindowState.currentPosition = position;
+            MockWindowState.isMaximized = false;
           } else {
             // Set default size and show window
+            appWindow.restore();
             appWindow.size = getDefaultWindowSize();
-            appWindow.position = const Offset(100, 100);
+            appWindow.position = getDefaultWindowPosition();
+
+            MockWindowState.currentSize = getDefaultWindowSize();
+            MockWindowState.currentPosition = getDefaultWindowPosition();
+            MockWindowState.isMaximized = false;
           }
         }
 
@@ -73,7 +85,7 @@ class WindowManagerService {
         if (windowState != null) {
           MockWindowState.currentSize = windowState.size;
           MockWindowState.currentPosition = windowState.position;
-          MockWindowState.isMaximized = windowState.isMaximized;
+          MockWindowState.isMaximized = false;
         }
       }
     }
@@ -91,12 +103,11 @@ class WindowManagerService {
       // Get current window state if not provided
       final currentSize = size ?? appWindow.size;
       final currentPosition = position ?? appWindow.position;
-      final currentMaximized = isMaximized ?? appWindow.isMaximized;
+      final currentMaximized = false;
 
       print('Saving window state:');
       print('  size: $currentSize');
       print('  position: $currentPosition');
-      print('  maximized: $currentMaximized');
 
       // Save to both services for redundancy
       await AppStateService.saveWindowSize(currentSize);
@@ -116,7 +127,7 @@ class WindowManagerService {
       // If window manager fails, use provided values or mock state
       final fallbackSize = size ?? MockWindowState.currentSize;
       final fallbackPosition = position ?? MockWindowState.currentPosition;
-      final fallbackMaximized = isMaximized ?? MockWindowState.isMaximized;
+      final fallbackMaximized = false;
 
       await AppStateService.saveWindowSize(fallbackSize);
       await AppStateService.saveWindowPosition(fallbackPosition);
@@ -140,23 +151,21 @@ class WindowManagerService {
         return;
       }
 
-      print('Restoring window state:');
-      print('  size: ${windowState.size}');
-      print('  position: ${windowState.position}');
-      print('  maximized: ${windowState.isMaximized}');
+      // Validate and clamp values
+      final Size size = (windowState.size.width < 200 || windowState.size.height < 200) ? getDefaultWindowSize() : windowState.size;
+      final Offset position =
+          (windowState.position.dx < 0 || windowState.position.dy < 0) ? getDefaultWindowPosition() : windowState.position;
 
-      // Apply to real window
-      appWindow.size = windowState.size;
-      appWindow.position = windowState.position;
-      if (windowState.isMaximized) {
-        appWindow.maximize();
-      }
+      // Apply to real window and ensure it's visible and focused
+      appWindow.restore();
+      appWindow.size = size;
+      appWindow.position = position;
 
-      print('  Applied to real window');
+      appWindow.show();
 
       // Update mock state for compatibility
-      MockWindowState.currentSize = windowState.size;
-      MockWindowState.currentPosition = windowState.position;
+      MockWindowState.currentSize = size;
+      MockWindowState.currentPosition = position;
       MockWindowState.isMaximized = windowState.isMaximized;
     } catch (e) {
       // If bitsdojo_window fails, just update mock state
@@ -211,10 +220,7 @@ class _WindowStateManagerState extends ConsumerState<WindowStateManager> with Wi
     super.initState();
     WidgetsBinding.instance.addObserver(this);
 
-    // Restore window state
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      WindowManagerService.restoreWindowState();
-    });
+    // Window restore handled during WindowManagerService.initialize()
 
     // Periodically save window state (every 5 seconds)
     _saveTimer = Timer.periodic(const Duration(seconds: 5), (_) {
