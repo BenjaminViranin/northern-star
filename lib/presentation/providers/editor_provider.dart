@@ -210,7 +210,15 @@ class EditorNotifier extends StateNotifier<EditorState> {
       if (note.content.isNotEmpty) {
         try {
           final deltaJson = jsonDecode(note.content);
-          deltaOps = deltaJson['ops'] ?? [];
+          if (deltaJson is Map<String, dynamic> && deltaJson.containsKey('ops')) {
+            deltaOps = deltaJson['ops'] as List<dynamic>;
+          } else if (deltaJson is List<dynamic>) {
+            deltaOps = deltaJson;
+          } else {
+            deltaOps = [
+              {'insert': '${note.plainText}\n'}
+            ];
+          }
         } catch (e) {
           // Fallback - create a simple text delta
           deltaOps = [
@@ -231,11 +239,14 @@ class EditorNotifier extends StateNotifier<EditorState> {
 
       // Restore selection (caret) and clamp to new document length
       final newDocLength = state.controller.document.length;
-      int desiredOffset = oldSelection.baseOffset;
-      if (desiredOffset < 0) desiredOffset = 0;
-      if (desiredOffset >= newDocLength) desiredOffset = newDocLength - 1;
+      int desiredBase = oldSelection.baseOffset;
+      int desiredExtent = oldSelection.extentOffset;
+      if (desiredBase < 0) desiredBase = 0;
+      if (desiredExtent < 0) desiredExtent = 0;
+      if (desiredBase >= newDocLength) desiredBase = newDocLength - 1;
+      if (desiredExtent >= newDocLength) desiredExtent = newDocLength - 1;
       state.controller.updateSelection(
-        TextSelection.collapsed(offset: desiredOffset),
+        TextSelection(baseOffset: desiredBase, extentOffset: desiredExtent),
         ChangeSource.local,
       );
 
@@ -379,58 +390,39 @@ class EditorNotifier extends StateNotifier<EditorState> {
   // Formatting methods
   void toggleBold() {
     final selection = state.controller.selection;
-    if (selection.isCollapsed) {
-      // If no text is selected, toggle formatting for next typed text
-      state.controller.formatSelection(Attribute.bold);
-    } else {
-      // Format the selected text
-      state.controller.formatSelection(Attribute.bold);
-    }
+    state.controller.formatSelection(Attribute.bold);
+    // Restore selection so it remains highlighted after applying format
+    state.controller.updateSelection(selection, ChangeSource.local);
   }
 
   void toggleItalic() {
     final selection = state.controller.selection;
-    if (selection.isCollapsed) {
-      state.controller.formatSelection(Attribute.italic);
-    } else {
-      state.controller.formatSelection(Attribute.italic);
-    }
+    state.controller.formatSelection(Attribute.italic);
+    state.controller.updateSelection(selection, ChangeSource.local);
   }
 
   void toggleUnderline() {
     final selection = state.controller.selection;
-    if (selection.isCollapsed) {
-      state.controller.formatSelection(Attribute.underline);
-    } else {
-      state.controller.formatSelection(Attribute.underline);
-    }
+    state.controller.formatSelection(Attribute.underline);
+    state.controller.updateSelection(selection, ChangeSource.local);
   }
 
   void toggleStrikethrough() {
     final selection = state.controller.selection;
-    if (selection.isCollapsed) {
-      state.controller.formatSelection(Attribute.strikeThrough);
-    } else {
-      state.controller.formatSelection(Attribute.strikeThrough);
-    }
+    state.controller.formatSelection(Attribute.strikeThrough);
+    state.controller.updateSelection(selection, ChangeSource.local);
   }
 
   void toggleCodeBlock() {
     final selection = state.controller.selection;
-    if (selection.isCollapsed) {
-      state.controller.formatSelection(Attribute.codeBlock);
-    } else {
-      state.controller.formatSelection(Attribute.codeBlock);
-    }
+    state.controller.formatSelection(Attribute.codeBlock);
+    state.controller.updateSelection(selection, ChangeSource.local);
   }
 
   void toggleInlineCode() {
     final selection = state.controller.selection;
-    if (selection.isCollapsed) {
-      state.controller.formatSelection(Attribute.inlineCode);
-    } else {
-      state.controller.formatSelection(Attribute.inlineCode);
-    }
+    state.controller.formatSelection(Attribute.inlineCode);
+    state.controller.updateSelection(selection, ChangeSource.local);
   }
 
   void insertCheckList() {

@@ -247,33 +247,63 @@ class _RichTextEditorState extends ConsumerState<RichTextEditor> with WidgetsBin
           _buildToolbarButton(
             icon: Icons.format_bold,
             isActive: _isFormatActive(controller, Attribute.bold),
-            onPressed: () => ref.read(editor_provider.editorProvider(widget.noteId).notifier).toggleBold(),
+            onPressed: () {
+              final sel = controller.selection;
+              if (!_focusNode.hasFocus) _focusNode.requestFocus();
+              ref.read(editor_provider.editorProvider(widget.noteId).notifier).toggleBold();
+              controller.updateSelection(sel, ChangeSource.local);
+            },
           ),
           _buildToolbarButton(
             icon: Icons.format_italic,
             isActive: _isFormatActive(controller, Attribute.italic),
-            onPressed: () => ref.read(editor_provider.editorProvider(widget.noteId).notifier).toggleItalic(),
+            onPressed: () {
+              final sel = controller.selection;
+              if (!_focusNode.hasFocus) _focusNode.requestFocus();
+              ref.read(editor_provider.editorProvider(widget.noteId).notifier).toggleItalic();
+              controller.updateSelection(sel, ChangeSource.local);
+            },
           ),
           _buildToolbarButton(
             icon: Icons.format_underlined,
             isActive: _isFormatActive(controller, Attribute.underline),
-            onPressed: () => ref.read(editor_provider.editorProvider(widget.noteId).notifier).toggleUnderline(),
+            onPressed: () {
+              final sel = controller.selection;
+              if (!_focusNode.hasFocus) _focusNode.requestFocus();
+              ref.read(editor_provider.editorProvider(widget.noteId).notifier).toggleUnderline();
+              controller.updateSelection(sel, ChangeSource.local);
+            },
           ),
           _buildToolbarButton(
             icon: Icons.format_strikethrough,
             isActive: _isFormatActive(controller, Attribute.strikeThrough),
-            onPressed: () => ref.read(editor_provider.editorProvider(widget.noteId).notifier).toggleStrikethrough(),
+            onPressed: () {
+              final sel = controller.selection;
+              if (!_focusNode.hasFocus) _focusNode.requestFocus();
+              ref.read(editor_provider.editorProvider(widget.noteId).notifier).toggleStrikethrough();
+              controller.updateSelection(sel, ChangeSource.local);
+            },
           ),
           const VerticalDivider(color: AppTheme.border),
           _buildToolbarButton(
             icon: Icons.code,
             isActive: _isFormatActive(controller, Attribute.inlineCode),
-            onPressed: () => ref.read(editor_provider.editorProvider(widget.noteId).notifier).toggleInlineCode(),
+            onPressed: () {
+              final sel = controller.selection;
+              if (!_focusNode.hasFocus) _focusNode.requestFocus();
+              ref.read(editor_provider.editorProvider(widget.noteId).notifier).toggleInlineCode();
+              controller.updateSelection(sel, ChangeSource.local);
+            },
           ),
           _buildToolbarButton(
             icon: Icons.checklist,
             isActive: false, // Checklist doesn't have an active state
-            onPressed: () => ref.read(editor_provider.editorProvider(widget.noteId).notifier).insertCheckList(),
+            onPressed: () {
+              final sel = controller.selection;
+              if (!_focusNode.hasFocus) _focusNode.requestFocus();
+              ref.read(editor_provider.editorProvider(widget.noteId).notifier).insertCheckList();
+              controller.updateSelection(sel, ChangeSource.local);
+            },
           ),
         ],
       ),
@@ -285,14 +315,19 @@ class _RichTextEditorState extends ConsumerState<RichTextEditor> with WidgetsBin
     required VoidCallback onPressed,
     bool isActive = false,
   }) {
-    return IconButton(
-      icon: Icon(icon, size: 20),
-      onPressed: onPressed,
-      color: isActive ? AppTheme.primaryTeal : AppTheme.textPrimary,
-      style: IconButton.styleFrom(
-        backgroundColor: isActive ? AppTheme.primaryTeal.withOpacity(0.1) : null,
+    // Prevent toolbar buttons from stealing focus from the editor
+    return Focus(
+      canRequestFocus: false,
+      skipTraversal: true,
+      child: IconButton(
+        icon: Icon(icon, size: 20),
+        onPressed: onPressed,
+        color: isActive ? AppTheme.primaryTeal : AppTheme.textPrimary,
+        style: IconButton.styleFrom(
+          backgroundColor: isActive ? AppTheme.primaryTeal.withOpacity(0.1) : null,
+        ),
+        splashRadius: 20,
       ),
-      splashRadius: 20,
     );
   }
 
