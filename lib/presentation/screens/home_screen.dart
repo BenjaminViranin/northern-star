@@ -171,6 +171,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _initializeServices();
     });
+
+    // Non-blocking sync error feedback
+    ref.listen<String?>(syncErrorProvider, (previous, next) {
+      if (next != null && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Unable to sync with server. Showing local data.'),
+            backgroundColor: Colors.orange,
+            behavior: SnackBarBehavior.floating,
+            duration: Duration(seconds: 4),
+          ),
+        );
+      }
+    });
   }
 
   void _initializeServices() async {

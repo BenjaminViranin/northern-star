@@ -10,11 +10,28 @@ class SessionPersistenceService {
   static const String _uiStateKey = 'ui_state';
   static const String _splitViewStateKey = 'split_view_state';
 
+  static const String _lastUserIdKey = 'last_user_id';
+
   static SharedPreferences? _prefs;
 
   /// Initialize the service
   static Future<void> initialize() async {
     _prefs = await SharedPreferences.getInstance();
+  }
+
+  /// Persist last known authenticated user id for offline usage
+  static Future<void> saveLastUserId(String userId) async {
+    await _prefs?.setString(_lastUserIdKey, userId);
+  }
+
+  /// Restore last known authenticated user id
+  static String? restoreLastUserId() {
+    return _prefs?.getString(_lastUserIdKey);
+  }
+
+  /// Clear the persisted last user id (on explicit sign-out)
+  static Future<void> clearLastUserId() async {
+    await _prefs?.remove(_lastUserIdKey);
   }
 
   /// Save window state (Windows only)

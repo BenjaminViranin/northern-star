@@ -7,16 +7,17 @@ import '../../data/repositories/groups_repository.dart';
 import '../../data/services/sync_service.dart';
 import '../../data/services/user_setup_service.dart';
 import '../../core/config/supabase_config.dart';
+import '../../core/services/session_persistence_service.dart';
 
-// Database instance provider - user-specific
+// Database instance provider - user-specific (offline-friendly)
 final databaseProvider = Provider<AppDatabase>((ref) {
-  final userId = ref.watch(currentUserIdProvider);
+  final userId = ref.watch(lastKnownUserIdProvider);
 
   if (userId != null) {
-    // Create user-specific database
+    // Use user-specific database even if auth is temporarily unavailable
     return AppDatabase.forUser(userId);
   } else {
-    // No user logged in - return default database (will be empty)
+    // No user logged in and no last known user - return default database (empty)
     return AppDatabase();
   }
 });
@@ -41,7 +42,7 @@ String? _currentUserId;
 // Sync service provider with singleton pattern
 final syncServiceProvider = Provider<SyncService>((ref) {
   final database = ref.watch(databaseProvider);
-  final userId = ref.watch(currentUserIdProvider);
+  final userId = ref.watch(lastKnownUserIdProvider);
 
   // Only recreate sync service if user changed or no service exists
   if (_globalSyncService == null || _currentUserId != userId) {
@@ -149,6 +150,23 @@ final currentUserIdProvider = Provider<String?>((ref) {
   );
 });
 
+// Last known user id provider (persists across transient auth errors/offline)
+final lastKnownUserIdProvider = Provider<String?>((ref) {
+  final authState = ref.watch(authStateProvider);
+  return authState.when(
+    data: (user) {
+      final id = user?.id;
+      if (id != null) {
+        SessionPersistenceService.saveLastUserId(id);
+        return id;
+      }
+      return SessionPersistenceService.restoreLastUserId();
+    },
+    loading: () => SessionPersistenceService.restoreLastUserId(),
+    error: (_, __) => SessionPersistenceService.restoreLastUserId(),
+  );
+});
+
 // Convenience provider for checking if user is authenticated
 final isAuthenticatedProvider = Provider<bool>((ref) {
   final authState = ref.watch(authStateProvider);
@@ -169,8 +187,8 @@ class UserSessionManager {
   String? _currentUserId;
 
   UserSessionManager(this._ref) {
-    // Listen to auth state changes
-    _ref.listen(currentUserIdProvider, (previous, next) {
+    // Listen to effective user id changes (offline-friendly)
+    _ref.listen(lastKnownUserIdProvider, (previous, next) {
       if (previous != next) {
         _handleUserChange(previous, next);
       }

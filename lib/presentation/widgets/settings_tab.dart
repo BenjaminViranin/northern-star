@@ -7,6 +7,8 @@ import 'dart:io';
 import '../../core/theme/app_theme.dart';
 import '../../core/config/supabase_config.dart';
 import '../providers/database_provider.dart';
+import '../../core/services/session_persistence_service.dart';
+
 import '../dialogs/auth_dialog.dart';
 
 class SettingsTab extends ConsumerWidget {
@@ -439,6 +441,7 @@ class SettingsTab extends ConsumerWidget {
       // Sign out
       try {
         await SupabaseConfig.client.auth.signOut();
+        await SessionPersistenceService.clearLastUserId();
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
