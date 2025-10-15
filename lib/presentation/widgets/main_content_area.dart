@@ -7,6 +7,7 @@ import '../screens/home_screen.dart';
 import '../widgets/rich_text_editor.dart';
 import '../widgets/settings_tab.dart';
 import '../providers/database_provider.dart';
+import '../providers/editor_mode_provider.dart';
 import '../dialogs/rename_note_dialog.dart';
 import '../dialogs/move_note_dialog.dart';
 
@@ -59,7 +60,7 @@ class MainContentArea extends ConsumerWidget {
         Expanded(
           child: RichTextEditor(
             noteId: navigationState.selectedNoteId,
-            readOnly: false,
+            readOnly: ref.watch(editorModeProvider),
           ),
         ),
       ],
@@ -141,6 +142,15 @@ class MainContentArea extends ConsumerWidget {
                 ),
               ),
               // Note actions menu
+              IconButton(
+                icon: Icon(
+                  ref.watch(editorModeProvider) ? Icons.visibility : Icons.visibility_off,
+                  color: AppTheme.textPrimary,
+                ),
+                tooltip: ref.watch(editorModeProvider) ? 'View Mode' : 'Edit Mode',
+                onPressed: () => ref.read(editorModeProvider.notifier).toggle(),
+              ),
+
               PopupMenuButton<String>(
                 icon: const Icon(Icons.more_vert, color: AppTheme.textPrimary),
                 itemBuilder: (context) => [
@@ -170,7 +180,7 @@ class MainContentArea extends ConsumerWidget {
         Expanded(
           child: RichTextEditor(
             noteId: navigationState.selectedNoteId,
-            readOnly: false,
+            readOnly: ref.watch(editorModeProvider),
           ),
         ),
       ],
@@ -468,6 +478,14 @@ class MainContentArea extends ConsumerWidget {
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
+                  IconButton(
+                    icon: Icon(
+                      ref.watch(editorModeProvider) ? Icons.visibility : Icons.visibility_off,
+                      size: 20,
+                    ),
+                    tooltip: ref.watch(editorModeProvider) ? 'View Mode' : 'Edit Mode',
+                    onPressed: () => ref.read(editorModeProvider.notifier).toggle(),
+                  ),
                   IconButton(
                     icon: const Icon(Icons.more_vert, size: 20),
                     onPressed: () => _showNoteActions(context, ref, note),

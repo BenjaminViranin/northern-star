@@ -14,6 +14,8 @@ class AppStateService {
   static const String _splitViewPaneCountKey = 'split_view_pane_count';
   static const String _splitViewNoteIdsKey = 'split_view_note_ids';
 
+  static const String _editorReadOnlyKey = 'editor_read_only';
+
   static SharedPreferences? _prefs;
 
   static Future<void> initialize() async {
@@ -138,6 +140,16 @@ class AppStateService {
 
   static String getSearchQuery() {
     return _prefs?.getString(_searchQueryKey) ?? '';
+  }
+
+  // Editor read-only (View Mode)
+  static Future<void> saveEditorReadOnly(bool readOnly) async {
+    if (_prefs == null) await initialize();
+    await _prefs!.setBool(_editorReadOnlyKey, readOnly);
+  }
+
+  static bool getEditorReadOnly() {
+    return _prefs?.getBool(_editorReadOnlyKey) ?? false; // Default to Edit Mode
   }
 
   // Expanded groups (for hierarchy view)

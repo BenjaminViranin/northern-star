@@ -7,6 +7,7 @@ import '../../core/services/keyboard_shortcuts_service.dart';
 import '../../core/services/app_state_service.dart';
 import '../providers/database_provider.dart';
 import '../providers/session_provider.dart';
+import '../providers/editor_mode_provider.dart';
 import '../widgets/rich_text_editor.dart';
 import '../dialogs/create_note_dialog.dart';
 
@@ -212,7 +213,7 @@ class _SplitViewScreenState extends ConsumerState<SplitViewScreen> {
         // Editor area
         Expanded(
           child: noteId != null
-              ? RichTextEditor(noteId: noteId)
+              ? RichTextEditor(noteId: noteId, readOnly: ref.watch(editorModeProvider))
               : Container(
                   decoration: BoxDecoration(
                     color: AppTheme.surfaceDark,

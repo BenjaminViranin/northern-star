@@ -6,6 +6,7 @@ import '../../core/theme/app_theme.dart';
 import '../providers/database_provider.dart';
 import '../providers/editor_provider.dart';
 import '../providers/session_provider.dart';
+import '../providers/editor_mode_provider.dart';
 import '../widgets/rich_text_editor.dart';
 import '../screens/split_view_screen.dart';
 import '../dialogs/create_note_dialog.dart';
@@ -325,7 +326,7 @@ class NotesTab extends ConsumerWidget {
 
               // Editor Area
               Expanded(
-                child: RichTextEditor(noteId: currentNoteId),
+                child: RichTextEditor(noteId: currentNoteId, readOnly: ref.watch(editorModeProvider)),
               ),
             ],
           ),

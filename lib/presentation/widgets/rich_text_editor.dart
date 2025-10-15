@@ -210,7 +210,7 @@ class _RichTextEditorState extends ConsumerState<RichTextEditor> with WidgetsBin
                   autoFocus: false,
                   placeholder: 'Start writing...',
                   readOnly: widget.readOnly,
-                  showCursor: true,
+                  showCursor: !widget.readOnly,
                   enableInteractiveSelection: true,
                   expands: false,
                   keyboardAppearance: Brightness.light,
