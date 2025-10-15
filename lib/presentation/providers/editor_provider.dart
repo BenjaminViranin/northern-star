@@ -48,6 +48,14 @@ class EditorState {
   }
 }
 
+// Internal action descriptor for checklist strike enforcement
+class _StrikeAction {
+  final int start;
+  final int length;
+  final bool apply;
+  const _StrikeAction({required this.start, required this.length, required this.apply});
+}
+
 // Editor provider for a specific note
 class EditorNotifier extends StateNotifier<EditorState> {
   final Ref ref;
@@ -60,6 +68,7 @@ class EditorNotifier extends StateNotifier<EditorState> {
   bool _hasEditorFocus = false;
   DateTime? _lastRefreshTime;
   String? _lastKnownContent;
+  bool _isApplyingChecklistFormatting = false; // guard to avoid recursive listeners
 
   EditorNotifier(this.ref, this.noteId)
       : super(EditorState(
@@ -268,18 +277,118 @@ class EditorNotifier extends StateNotifier<EditorState> {
     }
   }
 
+  // Apply or remove strike-through automatically based on checklist state
+  void _enforceChecklistStrikethrough() {
+    if (_isApplyingChecklistFormatting) return;
+
+    final controller = state.controller;
+    final doc = controller.document;
+
+    // Fast path: skip if document is empty
+    if (doc.length <= 1) return;
+
+    final delta = doc.toDelta();
+    final actions = <_StrikeAction>[];
+
+    int globalOffset = 0; // offset within document
+    int lineStart = 0;
+
+    for (final op in delta.toList()) {
+      final data = op.data;
+      final attributes = op.attributes ?? const <String, dynamic>{};
+      int opLength = 0;
+
+      if (data is String) {
+        opLength = data.length;
+        int localIndex = 0;
+        while (localIndex < data.length) {
+          final nextNl = data.indexOf('\n', localIndex);
+          if (nextNl == -1) {
+            // No newline in the remaining segment
+            globalOffset += data.length - localIndex;
+            break;
+          }
+
+          final lineEndExclusive = globalOffset + (nextNl - localIndex);
+          final listValue = attributes['list']; // 'checked' | 'unchecked' | null
+
+          if (lineEndExclusive > lineStart) {
+            if (listValue == 'checked') {
+              actions.add(_StrikeAction(start: lineStart, length: lineEndExclusive - lineStart, apply: true));
+            } else if (listValue == 'unchecked') {
+              actions.add(_StrikeAction(start: lineStart, length: lineEndExclusive - lineStart, apply: false));
+            }
+          }
+
+          // Advance past the newline
+          globalOffset += (nextNl - localIndex) + 1;
+          localIndex = nextNl + 1;
+          lineStart = globalOffset;
+        }
+      } else {
+        // Treat embeds as length 1 for offset accounting
+        opLength = 1;
+        globalOffset += opLength;
+      }
+    }
+
+    if (actions.isEmpty) return;
+
+    _isApplyingChecklistFormatting = true;
+    final previousSelection = controller.selection;
+    final bool hadCollapsed = previousSelection.isCollapsed;
+    final List<Attribute> pendingToggled =
+        hadCollapsed ? controller.toggledStyle.attributes.values.whereType<Attribute>().toList() : const <Attribute>[];
+    try {
+      for (final a in actions) {
+        if (a.length <= 0) continue;
+        // Select the line content (excluding trailing newline) and inspect style
+        controller.updateSelection(
+          TextSelection(baseOffset: a.start, extentOffset: a.start + a.length),
+          ChangeSource.local,
+        );
+        final style = controller.getSelectionStyle();
+        final hasStrike = style.attributes.containsKey(Attribute.strikeThrough.key);
+        if (a.apply && !hasStrike) {
+          controller.formatSelection(Attribute.strikeThrough);
+        } else if (!a.apply && hasStrike) {
+          controller.formatSelection(Attribute.clone(Attribute.strikeThrough, null));
+        }
+      }
+    } finally {
+      // Restore original selection
+      controller.updateSelection(previousSelection, ChangeSource.local);
+      // Re-apply pending toggled styles for collapsed caret so toolbar state and
+      // subsequent typing are preserved after our programmatic formatting.
+      if (hadCollapsed && pendingToggled.isNotEmpty) {
+        for (final attr in pendingToggled) {
+          controller.formatSelection(attr);
+        }
+      }
+      _isApplyingChecklistFormatting = false;
+    }
+  }
+
   void _onContentChanged() {
+    // Avoid re-entrancy while we adjust formatting programmatically
+    if (_isApplyingChecklistFormatting) return;
+
     if (!state.isLoading && !state.isSaving && !_isUpdatingFromDatabase) {
+      // Enforce checklist strike-through before computing content changes
+      _enforceChecklistStrikethrough();
+
       final content = jsonEncode(state.controller.document.toDelta().toJson());
       final hasChanges = content != state.lastSavedContent;
 
-      print('📝 Content changed - Note ID: $noteId, Has changes: $hasChanges');
-      print('📝 New content length: ${content.length}');
+      if (AppConstants.enableDebugLogging) {
+        debugPrint('📝 Content changed - Note ID: $noteId, Has changes: $hasChanges');
+        debugPrint('📝 New content length: ${content.length}');
+      }
 
       if (hasChanges) {
         state = state.copyWith(hasUnsavedChanges: true);
         _contentSubject.add(content);
-        print('📝 Added to autosave queue');
+        if (AppConstants.enableDebugLogging) debugPrint('📝 Added to autosave queue');
       }
     }
   }
@@ -387,43 +496,39 @@ class EditorNotifier extends StateNotifier<EditorState> {
     });
   }
 
-  // Formatting methods
-  void toggleBold() {
-    final selection = state.controller.selection;
-    state.controller.formatSelection(Attribute.bold);
-    // Restore selection so it remains highlighted after applying format
-    state.controller.updateSelection(selection, ChangeSource.local);
+  // Formatting methods (toggle on/off for both collapsed and range selections)
+  void _toggleAttribute(Attribute attribute) {
+    final controller = state.controller;
+    final selection = controller.selection;
+
+    bool isActive;
+    try {
+      if (selection.isCollapsed) {
+        final toggled = controller.toggledStyle;
+        isActive = toggled.attributes.containsKey(attribute.key) || controller.getSelectionStyle().attributes.containsKey(attribute.key);
+      } else {
+        isActive = controller.getSelectionStyle().attributes.containsKey(attribute.key);
+      }
+    } catch (_) {
+      isActive = false;
+    }
+
+    if (isActive) {
+      controller.formatSelection(Attribute.clone(attribute, null));
+    } else {
+      controller.formatSelection(attribute);
+    }
+
+    // Keep selection as-is so user sees the result and keeps typing
+    controller.updateSelection(selection, ChangeSource.local);
   }
 
-  void toggleItalic() {
-    final selection = state.controller.selection;
-    state.controller.formatSelection(Attribute.italic);
-    state.controller.updateSelection(selection, ChangeSource.local);
-  }
-
-  void toggleUnderline() {
-    final selection = state.controller.selection;
-    state.controller.formatSelection(Attribute.underline);
-    state.controller.updateSelection(selection, ChangeSource.local);
-  }
-
-  void toggleStrikethrough() {
-    final selection = state.controller.selection;
-    state.controller.formatSelection(Attribute.strikeThrough);
-    state.controller.updateSelection(selection, ChangeSource.local);
-  }
-
-  void toggleCodeBlock() {
-    final selection = state.controller.selection;
-    state.controller.formatSelection(Attribute.codeBlock);
-    state.controller.updateSelection(selection, ChangeSource.local);
-  }
-
-  void toggleInlineCode() {
-    final selection = state.controller.selection;
-    state.controller.formatSelection(Attribute.inlineCode);
-    state.controller.updateSelection(selection, ChangeSource.local);
-  }
+  void toggleBold() => _toggleAttribute(Attribute.bold);
+  void toggleItalic() => _toggleAttribute(Attribute.italic);
+  void toggleUnderline() => _toggleAttribute(Attribute.underline);
+  void toggleStrikethrough() => _toggleAttribute(Attribute.strikeThrough);
+  void toggleCodeBlock() => _toggleAttribute(Attribute.codeBlock);
+  void toggleInlineCode() => _toggleAttribute(Attribute.inlineCode);
 
   void insertCheckList() {
     // Insert checklist at current position

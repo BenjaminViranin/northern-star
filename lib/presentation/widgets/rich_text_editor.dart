@@ -334,17 +334,18 @@ class _RichTextEditorState extends ConsumerState<RichTextEditor> with WidgetsBin
   bool _isFormatActive(QuillController controller, Attribute attribute) {
     try {
       final selection = controller.selection;
+      // When selection is collapsed, prefer the controller's toggledStyle
+      // so toolbar reflects pending formatting for next typed characters.
       if (selection.isCollapsed) {
-        // For collapsed selection, check the style at the cursor position
-        final style = controller.getSelectionStyle();
-        return style.attributes.containsKey(attribute.key);
-      } else {
-        // For text selection, check if the attribute is applied to the selection
-        final style = controller.getSelectionStyle();
-        return style.attributes.containsKey(attribute.key);
+        final toggled = controller.toggledStyle;
+        if (toggled.attributes.containsKey(attribute.key)) return true;
+        final caretStyle = controller.getSelectionStyle();
+        return caretStyle.attributes.containsKey(attribute.key);
       }
-    } catch (e) {
-      // If there's any error checking the format, assume it's not active
+      // For a range selection, rely on selection style
+      final style = controller.getSelectionStyle();
+      return style.attributes.containsKey(attribute.key);
+    } catch (_) {
       return false;
     }
   }
