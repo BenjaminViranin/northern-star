@@ -14,23 +14,40 @@ import '../dialogs/rename_note_dialog.dart';
 import '../dialogs/move_note_dialog.dart';
 import '../dialogs/delete_confirmation_dialog.dart';
 
-class NotesTab extends ConsumerWidget {
+class NotesTab extends ConsumerStatefulWidget {
   const NotesTab({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<NotesTab> createState() => _NotesTabState();
+}
+
+class _NotesTabState extends ConsumerState<NotesTab> {
+  ProviderSubscription<SessionState>? _sessionSub;
+
+  @override
+  void initState() {
+    super.initState();
+    // Listen to session changes outside build to avoid assertion on some platforms
+    _sessionSub = ref.listenManual<SessionState>(sessionProvider, (previous, next) {
+      if (next.isInitialized && !next.isRestoring && previous?.isInitialized != true) {
+        _restoreSessionState(ref, next);
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _sessionSub?.close();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final currentNoteId = ref.watch(currentNoteIdProvider);
     print('🔧 NotesTab build - currentNoteId: $currentNoteId');
     final filteredNotes = ref.watch(filteredNotesProvider);
     final searchQuery = ref.watch(searchQueryProvider);
     final selectedGroupId = ref.watch(selectedGroupProvider);
-
-    // Restore session state on first build
-    ref.listen(sessionProvider, (previous, next) {
-      if (next.isInitialized && !next.isRestoring && previous?.isInitialized != true) {
-        _restoreSessionState(ref, next);
-      }
-    });
 
     return Column(
       children: [
