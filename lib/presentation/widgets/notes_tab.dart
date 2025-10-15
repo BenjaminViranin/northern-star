@@ -27,7 +27,6 @@ class _NotesTabState extends ConsumerState<NotesTab> {
   @override
   void initState() {
     super.initState();
-    // Listen to session changes outside build to avoid assertion on some platforms
     _sessionSub = ref.listenManual<SessionState>(sessionProvider, (previous, next) {
       if (next.isInitialized && !next.isRestoring && previous?.isInitialized != true) {
         _restoreSessionState(ref, next);

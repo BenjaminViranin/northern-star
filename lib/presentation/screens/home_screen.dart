@@ -163,6 +163,8 @@ class HomeScreen extends ConsumerStatefulWidget {
 }
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
+  ProviderSubscription<String?>? _syncErrorSub;
+
   @override
   void initState() {
     super.initState();
@@ -172,8 +174,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       _initializeServices();
     });
 
-    // Non-blocking sync error feedback
-    ref.listen<String?>(syncErrorProvider, (previous, next) {
+    // Non-blocking sync error feedback (outside build)
+    _syncErrorSub = ref.listenManual<String?>(syncErrorProvider, (previous, next) {
       if (next != null && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -185,6 +187,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         );
       }
     });
+  }
+
+  @override
+  void dispose() {
+    _syncErrorSub?.close();
+    super.dispose();
   }
 
   void _initializeServices() async {

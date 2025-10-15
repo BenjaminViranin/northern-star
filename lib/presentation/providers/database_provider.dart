@@ -179,23 +179,23 @@ final isAuthenticatedProvider = Provider<bool>((ref) {
 
 // User session manager that handles cleanup on logout
 final userSessionManagerProvider = Provider<UserSessionManager>((ref) {
-  return UserSessionManager(ref);
+  final manager = UserSessionManager(ref);
+  // Listen to effective user id changes (offline-friendly) within provider scope
+  ref.listen<String?>(lastKnownUserIdProvider, (previous, next) {
+    if (previous != next) {
+      manager.handleUserChange(previous, next);
+    }
+  });
+  return manager;
 });
 
 class UserSessionManager {
   final Ref _ref;
   String? _currentUserId;
 
-  UserSessionManager(this._ref) {
-    // Listen to effective user id changes (offline-friendly)
-    _ref.listen(lastKnownUserIdProvider, (previous, next) {
-      if (previous != next) {
-        _handleUserChange(previous, next);
-      }
-    });
-  }
+  UserSessionManager(this._ref);
 
-  void _handleUserChange(String? previousUserId, String? currentUserId) {
+  void handleUserChange(String? previousUserId, String? currentUserId) {
     print('🔄 User session changed: $previousUserId -> $currentUserId');
 
     if (previousUserId != null && currentUserId != previousUserId) {
