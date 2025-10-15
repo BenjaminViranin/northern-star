@@ -140,6 +140,10 @@ class EditorNotifier extends StateNotifier<EditorState> {
           isLoading: false,
           lastSavedContent: note.content,
         );
+
+        // Initialize known content tracking to avoid immediate forced refresh resetting selection
+        _lastKnownContent = note.content;
+        _lastRefreshTime = DateTime.now();
       }
     } catch (e) {
       state = state.copyWith(
@@ -219,9 +223,21 @@ class EditorNotifier extends StateNotifier<EditorState> {
         ];
       }
 
-      // Create new delta and update the controller
+      // Create new delta and update the controller, preserving current selection
       final delta = Delta.fromJson(deltaOps);
+      final oldSelection = state.controller.selection;
+
       state.controller.document = Document.fromDelta(delta);
+
+      // Restore selection (caret) and clamp to new document length
+      final newDocLength = state.controller.document.length;
+      int desiredOffset = oldSelection.baseOffset;
+      if (desiredOffset < 0) desiredOffset = 0;
+      if (desiredOffset >= newDocLength) desiredOffset = newDocLength - 1;
+      state.controller.updateSelection(
+        TextSelection.collapsed(offset: desiredOffset),
+        ChangeSource.local,
+      );
 
       // Update tracking variables
       _lastKnownContent = note.content;
