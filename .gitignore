@@ -41,3 +41,7 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Local overrides/vendor dependencies
+third_party/
+typed_data_tmp.txt

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:dart_quill_delta/dart_quill_delta.dart';
 import 'package:drift/drift.dart';
 import 'package:flutter_quill/flutter_quill.dart';
 import 'package:uuid/uuid.dart';

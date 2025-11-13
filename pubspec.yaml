@@ -35,7 +35,7 @@ dependencies:
     cupertino_icons: ^1.0.2
 
     # Rich Text Editor
-    flutter_quill: ^8.6.4
+    flutter_quill: 11.5.0
 
     # Database and Storage
     drift: ^2.14.1
@@ -55,7 +55,7 @@ dependencies:
     equatable: ^2.0.5
 
     # File Operations
-    file_picker: ^6.1.1
+    file_picker: 10.3.6
 
     # Networking and Connectivity
     connectivity_plus: ^5.0.2
@@ -66,6 +66,8 @@ dependencies:
     # Session persistence
     shared_preferences: ^2.2.3
     bitsdojo_window: ^0.1.6
+    typed_data: 1.4.0
+    win32: 5.15.0
 
 dev_dependencies:
     flutter_test:

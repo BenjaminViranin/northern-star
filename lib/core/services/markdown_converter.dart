@@ -1,4 +1,4 @@
-import 'package:flutter_quill/flutter_quill.dart';
+import 'package:dart_quill_delta/dart_quill_delta.dart';
 
 /// Service for converting between Markdown and Quill Delta formats
 class MarkdownConverter {

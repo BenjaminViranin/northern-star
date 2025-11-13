@@ -31,6 +31,7 @@ class _RichTextEditorState extends ConsumerState<RichTextEditor> with WidgetsBin
 
     // Add app lifecycle observer
     WidgetsBinding.instance.addObserver(this);
+    HardwareKeyboard.instance.addHandler(_handleHardwareKeyEvent);
 
     // Setup focus listener
     _focusNode.addListener(_onFocusChanged);
@@ -50,6 +51,7 @@ class _RichTextEditorState extends ConsumerState<RichTextEditor> with WidgetsBin
     _lastController?.removeListener(_onSelectionChanged);
     _focusNode.removeListener(_onFocusChanged);
     _focusNode.dispose();
+    HardwareKeyboard.instance.removeHandler(_handleHardwareKeyEvent);
     super.dispose();
   }
 
@@ -96,6 +98,46 @@ class _RichTextEditorState extends ConsumerState<RichTextEditor> with WidgetsBin
     if (mounted) {
       setState(() {});
     }
+  }
+
+  bool _handleHardwareKeyEvent(KeyEvent event) {
+    if (widget.readOnly || !_focusNode.hasFocus) {
+      return false;
+    }
+    if (event is! KeyDownEvent || event.logicalKey != LogicalKeyboardKey.space) {
+      return false;
+    }
+
+    final controller = _lastController;
+    if (controller == null) {
+      return false;
+    }
+
+    if (!_isHyphenAutoListScenario(controller)) {
+      return false;
+    }
+
+    final selection = controller.selection;
+    final newSelection = TextSelection.collapsed(offset: selection.baseOffset + 1);
+    controller.replaceText(selection.baseOffset, 0, ' ', newSelection);
+    return true;
+  }
+
+  bool _isHyphenAutoListScenario(QuillController controller) {
+    final selection = controller.selection;
+    if (!selection.isCollapsed || selection.baseOffset <= 0) {
+      return false;
+    }
+
+    final plainText = controller.document.toPlainText();
+    final cursor = selection.baseOffset;
+    if (cursor > plainText.length) {
+      return false;
+    }
+
+    final lineStart = plainText.lastIndexOf('\n', cursor - 1) + 1;
+    final prefix = plainText.substring(lineStart, cursor);
+    return prefix == '-';
   }
 
   @override
@@ -183,6 +225,9 @@ class _RichTextEditorState extends ConsumerState<RichTextEditor> with WidgetsBin
       controller.addListener(_onSelectionChanged);
     }
 
+    // Sync read-only state with controller for Flutter Quill 11+
+    controller.readOnly = widget.readOnly;
+
     return Column(
       children: [
         if (!widget.readOnly) _buildToolbar(context, ref),
@@ -198,30 +243,25 @@ class _RichTextEditorState extends ConsumerState<RichTextEditor> with WidgetsBin
                 }
               }
             },
-            child: QuillProvider(
-              configurations: QuillConfigurations(
-                controller: editorState.controller,
-              ),
-              child: QuillEditor.basic(
-                focusNode: _focusNode,
-                configurations: QuillEditorConfigurations(
-                  scrollable: true,
-                  padding: const EdgeInsets.all(16),
-                  autoFocus: false,
-                  placeholder: 'Start writing...',
-                  readOnly: widget.readOnly,
-                  showCursor: !widget.readOnly,
-                  enableInteractiveSelection: true,
-                  expands: false,
-                  keyboardAppearance: Brightness.light,
-                  onTapUp: (details, p1) {
-                    // Always ensure focus when tapping
-                    if (!widget.readOnly) {
-                      _focusNode.requestFocus();
-                    }
-                    return false;
-                  },
-                ),
+            child: QuillEditor.basic(
+              controller: editorState.controller,
+              focusNode: _focusNode,
+              config: QuillEditorConfig(
+                scrollable: true,
+                padding: const EdgeInsets.all(16),
+                autoFocus: false,
+                placeholder: 'Start writing...',
+                showCursor: !widget.readOnly,
+                enableInteractiveSelection: true,
+                expands: false,
+                keyboardAppearance: Brightness.light,
+                onTapUp: (details, p1) {
+                  // Always ensure focus when tapping
+                  if (!widget.readOnly) {
+                    _focusNode.requestFocus();
+                  }
+                  return false;
+                },
               ),
             ),
           ),
@@ -324,7 +364,7 @@ class _RichTextEditorState extends ConsumerState<RichTextEditor> with WidgetsBin
         onPressed: onPressed,
         color: isActive ? AppTheme.primaryTeal : AppTheme.textPrimary,
         style: IconButton.styleFrom(
-          backgroundColor: isActive ? AppTheme.primaryTeal.withOpacity(0.1) : null,
+          backgroundColor: isActive ? AppTheme.primaryTeal.withValues(alpha: 0.1) : null,
         ),
         splashRadius: 20,
       ),

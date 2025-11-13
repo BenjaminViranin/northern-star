@@ -31,7 +31,7 @@ class AppTheme {
         elevation: 0,
         centerTitle: true,
       ),
-      cardTheme: CardTheme(
+      cardTheme: CardThemeData(
         color: surfaceDark,
         elevation: 4,
         shape: RoundedRectangleBorder(
@@ -77,7 +77,7 @@ class AppTheme {
         color: border,
         thickness: 0.5,
       ),
-      tabBarTheme: const TabBarTheme(
+      tabBarTheme: const TabBarThemeData(
         labelColor: primaryTeal,
         unselectedLabelColor: textSecondary,
         indicatorColor: primaryTeal,
