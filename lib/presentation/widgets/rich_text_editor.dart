@@ -219,6 +219,7 @@ class _RichTextEditorState extends ConsumerState<RichTextEditor> with WidgetsBin
 
     // Set up selection listener for toolbar updates
     final controller = editorState.controller;
+    final shortcutBindings = _buildEditorShortcuts(ref, controller);
     if (_lastController != controller) {
       _lastController?.removeListener(_onSelectionChanged);
       _lastController = controller;
@@ -243,27 +244,7 @@ class _RichTextEditorState extends ConsumerState<RichTextEditor> with WidgetsBin
                 }
               }
             },
-            child: QuillEditor.basic(
-              controller: editorState.controller,
-              focusNode: _focusNode,
-              config: QuillEditorConfig(
-                scrollable: true,
-                padding: const EdgeInsets.all(16),
-                autoFocus: false,
-                placeholder: 'Start writing...',
-                showCursor: !widget.readOnly,
-                enableInteractiveSelection: true,
-                expands: false,
-                keyboardAppearance: Brightness.light,
-                onTapUp: (details, p1) {
-                  // Always ensure focus when tapping
-                  if (!widget.readOnly) {
-                    _focusNode.requestFocus();
-                  }
-                  return false;
-                },
-              ),
-            ),
+            child: _buildEditorWidget(shortcutBindings, controller),
           ),
         ),
       ],
@@ -388,5 +369,81 @@ class _RichTextEditorState extends ConsumerState<RichTextEditor> with WidgetsBin
     } catch (_) {
       return false;
     }
+  }
+
+  Widget _buildEditorWidget(Map<ShortcutActivator, VoidCallback> shortcutBindings, QuillController controller) {
+    Widget editor = QuillEditor.basic(
+      controller: controller,
+      focusNode: _focusNode,
+      config: QuillEditorConfig(
+        scrollable: true,
+        padding: const EdgeInsets.all(16),
+        autoFocus: false,
+        placeholder: 'Start writing...',
+        showCursor: !widget.readOnly,
+        enableInteractiveSelection: true,
+        expands: false,
+        keyboardAppearance: Brightness.light,
+        onTapUp: (details, p1) {
+          // Always ensure focus when tapping
+          if (!widget.readOnly) {
+            _focusNode.requestFocus();
+          }
+          return false;
+        },
+      ),
+    );
+
+    editor = DefaultTextStyle.merge(
+      style: const TextStyle(
+        fontFamily: 'RobotoMono',
+        fontFamilyFallback: ['Source Code Pro', 'Menlo', 'monospace', 'Courier New', 'Courier'],
+        height: 1.3,
+      ),
+      child: editor,
+    );
+
+    if (shortcutBindings.isNotEmpty) {
+      editor = CallbackShortcuts(
+        bindings: shortcutBindings,
+        child: editor,
+      );
+    }
+
+    return editor;
+  }
+
+  Map<ShortcutActivator, VoidCallback> _buildEditorShortcuts(WidgetRef ref, QuillController controller) {
+    if (widget.readOnly) {
+      return const <ShortcutActivator, VoidCallback>{};
+    }
+
+    final notifier = ref.read(editor_provider.editorProvider(widget.noteId).notifier);
+
+    void handleUndo() {
+      if (!_focusNode.hasFocus) return;
+      controller.undo();
+    }
+
+    void handleRedo() {
+      if (!_focusNode.hasFocus) return;
+      controller.redo();
+    }
+
+    void handlePaste() {
+      if (!_focusNode.hasFocus) return;
+      notifier.handlePaste();
+    }
+
+    return <ShortcutActivator, VoidCallback>{
+      const SingleActivator(LogicalKeyboardKey.keyZ, control: true): handleUndo,
+      const SingleActivator(LogicalKeyboardKey.keyZ, meta: true): handleUndo,
+      const SingleActivator(LogicalKeyboardKey.keyZ, control: true, shift: true): handleRedo,
+      const SingleActivator(LogicalKeyboardKey.keyZ, meta: true, shift: true): handleRedo,
+      const SingleActivator(LogicalKeyboardKey.keyY, control: true): handleRedo,
+      const SingleActivator(LogicalKeyboardKey.keyY, meta: true): handleRedo,
+      const SingleActivator(LogicalKeyboardKey.keyV, control: true): handlePaste,
+      const SingleActivator(LogicalKeyboardKey.keyV, meta: true): handlePaste,
+    };
   }
 }

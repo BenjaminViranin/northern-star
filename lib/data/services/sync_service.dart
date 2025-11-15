@@ -743,7 +743,7 @@ class SyncService {
   /// Gets the Supabase UUID for a local integer ID
   Future<String?> _getSupabaseIdForLocalId(String table, int localId) async {
     if (table == 'groups') {
-      final group = await _database.getGroupById(localId);
+      final group = await _database.getGroupByIdIncludingDeleted(localId);
       print('🔍 Looking up group ID $localId: found=${group != null}, supabaseId=${group?.supabaseId}');
       return group?.supabaseId;
     } else if (table == 'notes') {

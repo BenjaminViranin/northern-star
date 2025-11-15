@@ -37,6 +37,7 @@ class AppDatabase extends _$AppDatabase {
   Future<List<Group>> getAllGroups() => (select(groups)..where((g) => g.isDeleted.equals(false))).get();
 
   Future<Group?> getGroupById(int id) => (select(groups)..where((g) => g.id.equals(id) & g.isDeleted.equals(false))).getSingleOrNull();
+  Future<Group?> getGroupByIdIncludingDeleted(int id) => (select(groups)..where((g) => g.id.equals(id))).getSingleOrNull();
 
   Future<int> insertGroup(GroupsCompanion group) => into(groups).insert(group);
 
