@@ -25,6 +25,11 @@ class GroupsRepository {
     return groups.where((g) => g.name == 'Uncategorized').firstOrNull;
   }
 
+  // Reactive stream - automatically updates when groups change
+  Stream<List<Group>> watchAllGroups() {
+    return _database.watchAllGroups();
+  }
+
   /// Get available group colors from constants
   List<String> getAvailableColors() {
     return AppConstants.groupColors;
@@ -151,7 +156,7 @@ class GroupsRepository {
   Future<void> _triggerImmediateSync() async {
     if (_syncService != null) {
       print('🚀 Triggering immediate sync from groups repository...');
-      await _syncService!.triggerImmediateSync();
+      await _syncService.triggerImmediateSync();
     } else {
       print('⚠️ Sync service not available, cannot trigger immediate sync');
     }

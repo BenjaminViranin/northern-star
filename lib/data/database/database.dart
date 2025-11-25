@@ -53,11 +53,19 @@ class AppDatabase extends _$AppDatabase {
 
   Future<int> deleteGroup(int id) => (update(groups)..where((g) => g.id.equals(id))).write(const GroupsCompanion(isDeleted: Value(true)));
 
-  // Note operations
-  Future<List<Note>> getAllNotes() => (select(notes)..where((n) => n.isDeleted.equals(false))).get();
+  // Watch group changes - reactive stream
+  Stream<List<Group>> watchAllGroups() => (select(groups)..where((g) => g.isDeleted.equals(false))).watch();
 
-  Future<List<Note>> getNotesByGroup(int groupId) =>
-      (select(notes)..where((n) => n.groupId.equals(groupId) & n.isDeleted.equals(false))).get();
+  // Note operations
+  Future<List<Note>> getAllNotes() => (select(notes)
+        ..where((n) => n.isDeleted.equals(false))
+        ..orderBy([(n) => OrderingTerm.desc(n.updatedAt)]))
+      .get();
+
+  Future<List<Note>> getNotesByGroup(int groupId) => (select(notes)
+        ..where((n) => n.groupId.equals(groupId) & n.isDeleted.equals(false))
+        ..orderBy([(n) => OrderingTerm.desc(n.updatedAt)]))
+      .get();
 
   Future<Note?> getNoteById(int id) => (select(notes)..where((n) => n.id.equals(id) & n.isDeleted.equals(false))).getSingleOrNull();
 
@@ -73,7 +81,17 @@ class AppDatabase extends _$AppDatabase {
 
   Future<int> softDeleteNote(int id) => (update(notes)..where((n) => n.id.equals(id))).write(const NotesCompanion(isDeleted: Value(true)));
 
-  // Watch note changes
+  // Watch note changes - reactive streams that automatically update when data changes
+  Stream<List<Note>> watchAllNotes() => (select(notes)
+        ..where((n) => n.isDeleted.equals(false))
+        ..orderBy([(n) => OrderingTerm.desc(n.updatedAt)]))
+      .watch();
+
+  Stream<List<Note>> watchNotesByGroup(int groupId) => (select(notes)
+        ..where((n) => n.groupId.equals(groupId) & n.isDeleted.equals(false))
+        ..orderBy([(n) => OrderingTerm.desc(n.updatedAt)]))
+      .watch();
+
   Stream<Note?> watchNoteById(int id) => (select(notes)..where((n) => n.id.equals(id) & n.isDeleted.equals(false))).watchSingleOrNull();
 
   // Sync queue operations

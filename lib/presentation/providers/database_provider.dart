@@ -106,16 +106,17 @@ final userSetupServiceProvider = Provider<UserSetupService>((ref) {
   return UserSetupService(database);
 });
 
-// Notes state providers
+// Notes state providers - using Drift's reactive streams for instant updates
 final notesProvider = StreamProvider<List<Note>>((ref) {
   final repository = ref.watch(notesRepositoryProvider);
-  // Convert Future to Stream for real-time updates
-  return Stream.periodic(const Duration(seconds: 1)).asyncMap((_) => repository.getAllNotes());
+  // Use Drift's watch stream - automatically updates when notes change
+  return repository.watchAllNotes();
 });
 
 final notesByGroupProvider = StreamProvider.family<List<Note>, int>((ref, groupId) {
   final repository = ref.watch(notesRepositoryProvider);
-  return Stream.periodic(const Duration(seconds: 1)).asyncMap((_) => repository.getNotesByGroup(groupId));
+  // Use Drift's watch stream - automatically updates when notes in this group change
+  return repository.watchNotesByGroup(groupId);
 });
 
 final noteByIdProvider = FutureProvider.family<Note?, int>((ref, noteId) {
@@ -123,10 +124,11 @@ final noteByIdProvider = FutureProvider.family<Note?, int>((ref, noteId) {
   return repository.getNoteById(noteId);
 });
 
-// Groups state providers
+// Groups state providers - using Drift's reactive streams for instant updates
 final groupsProvider = StreamProvider<List<Group>>((ref) {
   final repository = ref.watch(groupsRepositoryProvider);
-  return Stream.periodic(const Duration(seconds: 1)).asyncMap((_) => repository.getAllGroups());
+  // Use Drift's watch stream - automatically updates when groups change
+  return repository.watchAllGroups();
 });
 
 // Current note ID provider (for tracking selected note)
@@ -243,29 +245,22 @@ final lastSyncTimeProvider = StateProvider<DateTime?>((ref) => null);
 
 final syncErrorProvider = StateProvider<String?>((ref) => null);
 
-// Filtered notes provider
+// Filtered notes provider - using Drift's reactive streams with filtering
 final filteredNotesProvider = StreamProvider<List<Note>>((ref) {
   final selectedGroupId = ref.watch(selectedGroupProvider);
   final searchQuery = ref.watch(searchQueryProvider);
   final repository = ref.watch(notesRepositoryProvider);
 
-  return Stream.periodic(const Duration(seconds: 1)).asyncMap((_) async {
-    List<Note> notes;
+  // Use Drift's watch stream based on selected group
+  final notesStream = selectedGroupId != null ? repository.watchNotesByGroup(selectedGroupId) : repository.watchAllNotes();
 
-    if (selectedGroupId != null) {
-      notes = await repository.getNotesByGroup(selectedGroupId);
-    } else {
-      notes = await repository.getAllNotes();
-    }
+  // Apply search filter if needed
+  if (searchQuery.isNotEmpty) {
+    return notesStream.map((notes) => notes
+        .where((note) =>
+            note.title.toLowerCase().contains(searchQuery.toLowerCase()) || note.content.toLowerCase().contains(searchQuery.toLowerCase()))
+        .toList());
+  }
 
-    if (searchQuery.isNotEmpty) {
-      notes = notes
-          .where((note) =>
-              note.title.toLowerCase().contains(searchQuery.toLowerCase()) ||
-              note.content.toLowerCase().contains(searchQuery.toLowerCase()))
-          .toList();
-    }
-
-    return notes;
-  });
+  return notesStream;
 });

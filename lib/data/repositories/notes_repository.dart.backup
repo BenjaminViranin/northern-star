@@ -1,4 +1,4 @@
-import 'dart:convert';
+﻿import 'dart:convert';
 import 'package:drift/drift.dart';
 import 'package:uuid/uuid.dart';
 
@@ -23,15 +23,6 @@ class NotesRepository {
 
   Future<Note?> getNoteById(int id) async {
     return await _database.getNoteById(id);
-  }
-
-  // Reactive streams - automatically update when data changes
-  Stream<List<Note>> watchAllNotes() {
-    return _database.watchAllNotes();
-  }
-
-  Stream<List<Note>> watchNotesByGroup(int groupId) {
-    return _database.watchNotesByGroup(groupId);
   }
 
   Future<int> createNote({
@@ -92,16 +83,13 @@ class NotesRepository {
       final currentNote = await _database.getNoteById(id);
       if (currentNote == null) return false;
 
-      // Add to sync queue - always include group_id for updates
-      final updateData = <String, dynamic>{
-        'group_id': groupId ?? currentNote.groupId, // Use new groupId or keep current
+      await _addToSyncQueue('update', 'notes', id, {
+        'id': currentNote.supabaseId,
+        'title': title ?? currentNote.title,
+        'content': content ?? currentNote.content,
+        'group_id': groupId ?? currentNote.groupId,
         'updated_at': now.toIso8601String(),
-      };
-
-      if (title != null) updateData['title'] = title;
-      if (content != null) updateData['content'] = content;
-
-      await _addToSyncQueue('update', 'notes', id, updateData);
+      });
 
       // Trigger immediate sync if sync service is available
       await _triggerImmediateSync();
@@ -110,34 +98,31 @@ class NotesRepository {
     return success;
   }
 
-  Future<void> deleteNote(int id) async {
-    print(' Deleting note with ID: $id');
+  Future<bool> deleteNote(int id) async {
+    final note = await _database.getNoteById(id);
+    if (note == null) return false;
 
-    final result = await _database.softDeleteNote(id);
-    print(' Soft delete result: $result rows affected');
+    final success = await _database.softDeleteNote(id) > 0;
 
-    // Add to sync queue
-    await _addToSyncQueue('delete', 'notes', id, {
-      'is_deleted': true,
-      'updated_at': DateTime.now().toIso8601String(),
-    });
+    if (success && note.supabaseId != null) {
+      await _addToSyncQueue('delete', 'notes', id, {
+        'id': note.supabaseId,
+      });
 
-    print(' Added note deletion to sync queue');
+      // Trigger immediate sync if sync service is available
+      await _triggerImmediateSync();
+    }
 
-    // Trigger immediate sync if sync service is available
-    await _triggerImmediateSync();
+    return success;
   }
 
   Future<List<Note>> searchNotes(String query) async {
-    if (query.isEmpty) return getAllNotes();
-
-    final notes = await _database.getAllNotes();
-    return notes
+    final allNotes = await getAllNotes();
+    return allNotes
         .where((note) => note.title.toLowerCase().contains(query.toLowerCase()) || note.content.toLowerCase().contains(query.toLowerCase()))
         .toList();
   }
 
-  // Helper methods
   Future<void> _addToSyncQueue(String operation, String table, int localId, Map<String, dynamic> data) async {
     print(' Adding to sync queue: $operation $table (localId: $localId)');
     print(' Data: ${jsonEncode(data)}');
