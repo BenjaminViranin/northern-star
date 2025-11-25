@@ -264,7 +264,6 @@ class SettingsTab extends ConsumerWidget {
                   'id': n.id,
                   'title': n.title,
                   'content': n.content,
-                  'markdown': n.markdown,
                   'group_id': n.groupId,
                   'created_at': n.createdAt.toIso8601String(),
                   'updated_at': n.updatedAt.toIso8601String(),

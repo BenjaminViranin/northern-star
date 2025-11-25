@@ -262,7 +262,7 @@ final filteredNotesProvider = StreamProvider<List<Note>>((ref) {
       notes = notes
           .where((note) =>
               note.title.toLowerCase().contains(searchQuery.toLowerCase()) ||
-              note.plainText.toLowerCase().contains(searchQuery.toLowerCase()))
+              note.content.toLowerCase().contains(searchQuery.toLowerCase()))
           .toList();
     }
 

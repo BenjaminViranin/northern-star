@@ -20,8 +20,6 @@ class Notes extends Table {
   IntColumn get id => integer().autoIncrement()();
   TextColumn get title => text().withLength(min: 1, max: 200)();
   TextColumn get content => text()(); // Plain text content
-  TextColumn get markdown => text()(); // No longer used (kept for compatibility)
-  TextColumn get plainText => text()(); // Same as content (kept for compatibility)
   IntColumn get groupId => integer().references(Groups, #id)();
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
   DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();

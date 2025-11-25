@@ -7,9 +7,7 @@ part 'note_model.g.dart';
 class NoteModel extends Equatable {
   final String? id; // Supabase ID
   final String title;
-  final String content; // Quill Delta JSON
-  final String markdown;
-  final String plainText;
+  final String content; // Plain text content
   final String groupId;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -20,8 +18,6 @@ class NoteModel extends Equatable {
     this.id,
     required this.title,
     required this.content,
-    required this.markdown,
-    required this.plainText,
     required this.groupId,
     required this.createdAt,
     required this.updatedAt,
@@ -29,8 +25,7 @@ class NoteModel extends Equatable {
     this.version = 1,
   });
 
-  factory NoteModel.fromJson(Map<String, dynamic> json) =>
-      _$NoteModelFromJson(json);
+  factory NoteModel.fromJson(Map<String, dynamic> json) => _$NoteModelFromJson(json);
 
   Map<String, dynamic> toJson() => _$NoteModelToJson(this);
 
@@ -38,8 +33,6 @@ class NoteModel extends Equatable {
     String? id,
     String? title,
     String? content,
-    String? markdown,
-    String? plainText,
     String? groupId,
     DateTime? createdAt,
     DateTime? updatedAt,
@@ -50,8 +43,6 @@ class NoteModel extends Equatable {
       id: id ?? this.id,
       title: title ?? this.title,
       content: content ?? this.content,
-      markdown: markdown ?? this.markdown,
-      plainText: plainText ?? this.plainText,
       groupId: groupId ?? this.groupId,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
@@ -65,8 +56,6 @@ class NoteModel extends Equatable {
         id,
         title,
         content,
-        markdown,
-        plainText,
         groupId,
         createdAt,
         updatedAt,

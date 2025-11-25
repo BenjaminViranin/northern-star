@@ -269,7 +269,7 @@ class GroupsTab extends ConsumerWidget {
                           ),
                         ),
                         subtitle: Text(
-                          note.plainText.length > 100 ? '${note.plainText.substring(0, 100)}...' : note.plainText,
+                          note.content.length > 100 ? '${note.content.substring(0, 100)}...' : note.content,
                           style: const TextStyle(
                             color: AppTheme.textSecondary,
                           ),

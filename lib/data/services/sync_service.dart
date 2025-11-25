@@ -461,8 +461,6 @@ class SyncService {
     final data = {
       'title': note.title,
       'content': note.content,
-      'markdown': note.markdown,
-      'plain_text': note.plainText,
       'group_id': note.groupId,
       'created_at': note.createdAt.toIso8601String(),
       'updated_at': note.updatedAt.toIso8601String(),
@@ -904,8 +902,6 @@ class SyncService {
             await _database.insertNote(NotesCompanion(
               title: Value(serverNote['title']),
               content: Value(serverNote['content']),
-              markdown: Value(serverNote['markdown']),
-              plainText: Value(serverNote['plain_text']),
               groupId: Value(localGroupId),
               createdAt: Value(DateTime.parse(serverNote['created_at'])),
               updatedAt: Value(serverUpdatedAt),
@@ -927,8 +923,6 @@ class SyncService {
                 NotesCompanion(
                   title: Value(serverNote['title']),
                   content: Value(serverNote['content']),
-                  markdown: Value(serverNote['markdown']),
-                  plainText: Value(serverNote['plain_text']),
                   groupId: Value(localGroupId),
                   updatedAt: Value(serverUpdatedAt),
                   isDeleted: Value(serverNote['is_deleted'] ?? false),

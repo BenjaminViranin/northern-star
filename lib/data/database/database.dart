@@ -17,7 +17,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase._(QueryExecutor executor) : super(executor);
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
 
   @override
   MigrationStrategy get migration {
@@ -28,7 +28,12 @@ class AppDatabase extends _$AppDatabase {
         // and synced down when user authenticates
       },
       onUpgrade: (Migrator m, int from, int to) async {
-        // Handle future migrations here
+        // Migration from schema version 1 to 2: Remove markdown and plainText columns
+        if (from == 1 && to == 2) {
+          // Drop the markdown and plain_text columns from notes table
+          await customStatement('ALTER TABLE notes DROP COLUMN markdown');
+          await customStatement('ALTER TABLE notes DROP COLUMN plain_text');
+        }
       },
     );
   }

@@ -309,7 +309,7 @@ class _NotesTabState extends ConsumerState<NotesTab> {
                                     overflow: TextOverflow.ellipsis,
                                   ),
                                   subtitle: Text(
-                                    note.plainText.isEmpty ? 'Empty note' : note.plainText,
+                                    note.content.isEmpty ? 'Empty note' : note.content,
                                     style: const TextStyle(
                                       color: AppTheme.textSecondary,
                                       fontSize: 12,

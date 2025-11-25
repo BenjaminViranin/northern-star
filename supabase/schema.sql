@@ -17,9 +17,7 @@ CREATE TABLE groups (
 CREATE TABLE notes (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     title VARCHAR(200) NOT NULL,
-    content TEXT NOT NULL, -- Quill Delta JSON
-    markdown TEXT NOT NULL, -- Derived markdown
-    plain_text TEXT NOT NULL, -- For search
+    content TEXT NOT NULL, -- Plain text content
     group_id UUID REFERENCES groups(id) ON DELETE SET NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -34,7 +32,7 @@ CREATE INDEX idx_groups_is_deleted ON groups(is_deleted);
 CREATE INDEX idx_notes_user_id ON notes(user_id);
 CREATE INDEX idx_notes_group_id ON notes(group_id);
 CREATE INDEX idx_notes_is_deleted ON notes(is_deleted);
-CREATE INDEX idx_notes_plain_text ON notes USING gin(to_tsvector('english', plain_text));
+CREATE INDEX idx_notes_content ON notes USING gin(to_tsvector('english', content));
 
 -- Enable Row Level Security
 ALTER TABLE groups ENABLE ROW LEVEL SECURITY;

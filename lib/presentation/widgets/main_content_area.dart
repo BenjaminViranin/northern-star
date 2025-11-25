@@ -347,7 +347,7 @@ class MainContentArea extends ConsumerWidget {
               ),
               const SizedBox(height: 8),
               Text(
-                note.plainText.length > 150 ? '${note.plainText.substring(0, 150)}...' : note.plainText,
+                note.content.length > 150 ? '${note.content.substring(0, 150)}...' : note.content,
                 style: const TextStyle(
                   color: AppTheme.textSecondary,
                   fontSize: 14,
@@ -957,7 +957,7 @@ class GroupsManagementView extends ConsumerWidget {
                                   style: const TextStyle(color: AppTheme.textPrimary),
                                 ),
                                 subtitle: Text(
-                                  note.plainText.length > 100 ? '${note.plainText.substring(0, 100)}...' : note.plainText,
+                                  note.content.length > 100 ? '${note.content.substring(0, 100)}...' : note.content,
                                   style: const TextStyle(color: AppTheme.textSecondary),
                                   maxLines: 2,
                                   overflow: TextOverflow.ellipsis,
