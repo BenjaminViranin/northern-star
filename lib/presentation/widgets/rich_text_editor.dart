@@ -1,10 +1,7 @@
-import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:flutter_quill/flutter_quill.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/editor_provider.dart' as editor_provider;
-import '../providers/session_provider.dart';
 import '../../core/theme/app_theme.dart';
 
 class RichTextEditor extends ConsumerStatefulWidget {
@@ -21,152 +18,53 @@ class RichTextEditor extends ConsumerStatefulWidget {
   ConsumerState<RichTextEditor> createState() => _RichTextEditorState();
 }
 
-class _RichTextEditorState extends ConsumerState<RichTextEditor> with WidgetsBindingObserver {
-  QuillController? _lastController;
+class _RichTextEditorState extends ConsumerState<RichTextEditor> {
   final FocusNode _focusNode = FocusNode();
 
   @override
   void initState() {
     super.initState();
-
-    // Add app lifecycle observer
-    WidgetsBinding.instance.addObserver(this);
-    HardwareKeyboard.instance.addHandler(_handleHardwareKeyEvent);
-
-    // Setup focus listener
     _focusNode.addListener(_onFocusChanged);
-
-    // Setup session state management
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _setupSessionManagement();
-      // Don't auto-focus on mobile for consultation mode
-      // Initial refresh when editor is created
-      _refreshEditorContent();
-    });
-  }
-
-  @override
-  void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
-    _lastController?.removeListener(_onSelectionChanged);
-    _focusNode.removeListener(_onFocusChanged);
-    _focusNode.dispose();
-    HardwareKeyboard.instance.removeHandler(_handleHardwareKeyEvent);
-    super.dispose();
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    super.didChangeAppLifecycleState(state);
-
-    // Refresh editor content when app becomes active
-    if (state == AppLifecycleState.resumed) {
-      _refreshEditorContent();
-    }
-  }
-
-  void _onFocusChanged() {
-    if (widget.noteId != null) {
-      // Notify the editor provider about focus changes
-      ref.read(editor_provider.editorProvider(widget.noteId).notifier).onEditorFocusChanged(_focusNode.hasFocus);
-
-      // If editor gained focus, refresh content
-      if (_focusNode.hasFocus) {
-        _refreshEditorContent();
-      }
-    }
-  }
-
-  void _refreshEditorContent() {
-    if (widget.noteId != null) {
-      // Trigger a refresh from the database
-      ref.read(editor_provider.editorProvider(widget.noteId).notifier).refreshFromDatabase();
-    }
-  }
-
-  void _setupSessionManagement() {
-    if (widget.noteId == null) return;
-
-    // Save note change to session
-    ref.read(sessionProvider.notifier).saveLastOpenedNotes(
-          mainEditorNoteId: widget.noteId,
-        );
-  }
-
-  void _onSelectionChanged() {
-    // Force rebuild when selection changes to update toolbar states
-    if (mounted) {
-      setState(() {});
-    }
-  }
-
-  bool _handleHardwareKeyEvent(KeyEvent event) {
-    if (widget.readOnly || !_focusNode.hasFocus) {
-      return false;
-    }
-    if (event is! KeyDownEvent || event.logicalKey != LogicalKeyboardKey.space) {
-      return false;
-    }
-
-    final controller = _lastController;
-    if (controller == null) {
-      return false;
-    }
-
-    if (!_isHyphenAutoListScenario(controller)) {
-      return false;
-    }
-
-    final selection = controller.selection;
-    final newSelection = TextSelection.collapsed(offset: selection.baseOffset + 1);
-    controller.replaceText(selection.baseOffset, 0, ' ', newSelection);
-    return true;
-  }
-
-  bool _isHyphenAutoListScenario(QuillController controller) {
-    final selection = controller.selection;
-    if (!selection.isCollapsed || selection.baseOffset <= 0) {
-      return false;
-    }
-
-    final plainText = controller.document.toPlainText();
-    final cursor = selection.baseOffset;
-    if (cursor > plainText.length) {
-      return false;
-    }
-
-    final lineStart = plainText.lastIndexOf('\n', cursor - 1) + 1;
-    final prefix = plainText.substring(lineStart, cursor);
-    return prefix == '-';
   }
 
   @override
   void didUpdateWidget(RichTextEditor oldWidget) {
     super.didUpdateWidget(oldWidget);
+    // Auto-focus when a note is opened
+    if (widget.noteId != null && oldWidget.noteId != widget.noteId) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && !widget.readOnly) {
+          _focusNode.requestFocus();
+          // Move cursor to end of text
+          final controller = ref.read(editor_provider.editorProvider(widget.noteId)).controller;
+          controller.selection = TextSelection.fromPosition(
+            TextPosition(offset: controller.text.length),
+          );
+        }
+      });
+    }
+  }
 
-    // If note ID changed, refresh the content
-    if (oldWidget.noteId != widget.noteId) {
-      // Remove focus listener from old focus node if needed
-      if (oldWidget.noteId != null) {
-        ref.read(editor_provider.editorProvider(oldWidget.noteId).notifier).onEditorFocusChanged(false);
-      }
+  @override
+  void dispose() {
+    _focusNode.removeListener(_onFocusChanged);
+    _focusNode.dispose();
+    super.dispose();
+  }
 
-      // Setup for new note
-      if (widget.noteId != null) {
-        _refreshEditorContent();
-      }
+  void _onFocusChanged() {
+    if (widget.noteId != null) {
+      ref.read(editor_provider.editorProvider(widget.noteId).notifier).onEditorFocusChanged(_focusNode.hasFocus);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final ref = this.ref;
     if (widget.noteId == null) {
       return Container(
-        decoration: BoxDecoration(
-          color: AppTheme.surfaceDark,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: AppTheme.border),
+        decoration: const BoxDecoration(
+          color: Color(0xFF0F172A),
+          borderRadius: BorderRadius.zero,
         ),
         child: const Center(
           child: Column(
@@ -199,251 +97,52 @@ class _RichTextEditorState extends ConsumerState<RichTextEditor> with WidgetsBin
 
     if (editorState.error != null) {
       return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(
-              Icons.error_outline,
-              color: Colors.red,
-              size: 48,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'Error: ${editorState.error}',
-              style: const TextStyle(color: Colors.red),
-            ),
-          ],
+        child: Text(
+          'Error: ${editorState.error}',
+          style: const TextStyle(color: Colors.red),
         ),
       );
     }
 
-    // Set up selection listener for toolbar updates
-    final controller = editorState.controller;
-    final shortcutBindings = _buildEditorShortcuts(ref, controller);
-    if (_lastController != controller) {
-      _lastController?.removeListener(_onSelectionChanged);
-      _lastController = controller;
-      controller.addListener(_onSelectionChanged);
-    }
-
-    // Sync read-only state with controller for Flutter Quill 11+
-    controller.readOnly = widget.readOnly;
-
-    return Column(
-      children: [
-        if (!widget.readOnly) _buildToolbar(context, ref),
-        Expanded(
-          child: GestureDetector(
-            onTapDown: (details) {
-              if (!widget.readOnly) {
-                _focusNode.requestFocus();
-                // Move cursor to end if document is empty or very short
-                final doc = editorState.controller.document;
-                if (doc.length <= 1) {
-                  editorState.controller.moveCursorToEnd();
-                }
-              }
-            },
-            child: _buildEditorWidget(shortcutBindings, controller),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildToolbar(BuildContext context, WidgetRef ref) {
-    final editorState = ref.watch(editor_provider.editorProvider(widget.noteId));
     final controller = editorState.controller;
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: const BoxDecoration(
-        color: AppTheme.surfaceVariant,
-        border: Border(
-          bottom: BorderSide(color: AppTheme.border),
+        color: Color(0xFF0F172A),
+        borderRadius: BorderRadius.zero,
+      ),
+      child: TextField(
+        controller: controller,
+        focusNode: _focusNode,
+        readOnly: widget.readOnly,
+        maxLines: null,
+        expands: true,
+        textAlignVertical: TextAlignVertical.top,
+        style: const TextStyle(
+          color: AppTheme.textPrimary,
+          fontSize: 16,
+          height: 1.5,
+          fontFamily: 'Courier New',
+          fontFamilyFallback: ['Courier', 'monospace'],
+        ),
+        decoration: const InputDecoration(
+          hintText: 'Start writing...',
+          hintStyle: TextStyle(
+            color: AppTheme.textSecondary,
+            fontFamily: 'Courier New',
+            fontFamilyFallback: ['Courier', 'monospace'],
+          ),
+          border: InputBorder.none,
+          enabledBorder: InputBorder.none,
+          focusedBorder: InputBorder.none,
+          disabledBorder: InputBorder.none,
+          errorBorder: InputBorder.none,
+          focusedErrorBorder: InputBorder.none,
+          contentPadding: EdgeInsets.all(16),
+          filled: false,
+          hoverColor: Colors.transparent,
         ),
       ),
-      child: Row(
-        children: [
-          _buildToolbarButton(
-            icon: Icons.format_bold,
-            isActive: _isFormatActive(controller, Attribute.bold),
-            onPressed: () {
-              final sel = controller.selection;
-              if (!_focusNode.hasFocus) _focusNode.requestFocus();
-              ref.read(editor_provider.editorProvider(widget.noteId).notifier).toggleBold();
-              controller.updateSelection(sel, ChangeSource.local);
-            },
-          ),
-          _buildToolbarButton(
-            icon: Icons.format_italic,
-            isActive: _isFormatActive(controller, Attribute.italic),
-            onPressed: () {
-              final sel = controller.selection;
-              if (!_focusNode.hasFocus) _focusNode.requestFocus();
-              ref.read(editor_provider.editorProvider(widget.noteId).notifier).toggleItalic();
-              controller.updateSelection(sel, ChangeSource.local);
-            },
-          ),
-          _buildToolbarButton(
-            icon: Icons.format_underlined,
-            isActive: _isFormatActive(controller, Attribute.underline),
-            onPressed: () {
-              final sel = controller.selection;
-              if (!_focusNode.hasFocus) _focusNode.requestFocus();
-              ref.read(editor_provider.editorProvider(widget.noteId).notifier).toggleUnderline();
-              controller.updateSelection(sel, ChangeSource.local);
-            },
-          ),
-          _buildToolbarButton(
-            icon: Icons.format_strikethrough,
-            isActive: _isFormatActive(controller, Attribute.strikeThrough),
-            onPressed: () {
-              final sel = controller.selection;
-              if (!_focusNode.hasFocus) _focusNode.requestFocus();
-              ref.read(editor_provider.editorProvider(widget.noteId).notifier).toggleStrikethrough();
-              controller.updateSelection(sel, ChangeSource.local);
-            },
-          ),
-          const VerticalDivider(color: AppTheme.border),
-          _buildToolbarButton(
-            icon: Icons.code,
-            isActive: _isFormatActive(controller, Attribute.inlineCode),
-            onPressed: () {
-              final sel = controller.selection;
-              if (!_focusNode.hasFocus) _focusNode.requestFocus();
-              ref.read(editor_provider.editorProvider(widget.noteId).notifier).toggleInlineCode();
-              controller.updateSelection(sel, ChangeSource.local);
-            },
-          ),
-          _buildToolbarButton(
-            icon: Icons.checklist,
-            isActive: false, // Checklist doesn't have an active state
-            onPressed: () {
-              final sel = controller.selection;
-              if (!_focusNode.hasFocus) _focusNode.requestFocus();
-              ref.read(editor_provider.editorProvider(widget.noteId).notifier).insertCheckList();
-              controller.updateSelection(sel, ChangeSource.local);
-            },
-          ),
-        ],
-      ),
     );
-  }
-
-  Widget _buildToolbarButton({
-    required IconData icon,
-    required VoidCallback onPressed,
-    bool isActive = false,
-  }) {
-    // Prevent toolbar buttons from stealing focus from the editor
-    return Focus(
-      canRequestFocus: false,
-      skipTraversal: true,
-      child: IconButton(
-        icon: Icon(icon, size: 20),
-        onPressed: onPressed,
-        color: isActive ? AppTheme.primaryTeal : AppTheme.textPrimary,
-        style: IconButton.styleFrom(
-          backgroundColor: isActive ? AppTheme.primaryTeal.withValues(alpha: 0.1) : null,
-        ),
-        splashRadius: 20,
-      ),
-    );
-  }
-
-  bool _isFormatActive(QuillController controller, Attribute attribute) {
-    try {
-      final selection = controller.selection;
-      // When selection is collapsed, prefer the controller's toggledStyle
-      // so toolbar reflects pending formatting for next typed characters.
-      if (selection.isCollapsed) {
-        final toggled = controller.toggledStyle;
-        if (toggled.attributes.containsKey(attribute.key)) return true;
-        final caretStyle = controller.getSelectionStyle();
-        return caretStyle.attributes.containsKey(attribute.key);
-      }
-      // For a range selection, rely on selection style
-      final style = controller.getSelectionStyle();
-      return style.attributes.containsKey(attribute.key);
-    } catch (_) {
-      return false;
-    }
-  }
-
-  Widget _buildEditorWidget(Map<ShortcutActivator, VoidCallback> shortcutBindings, QuillController controller) {
-    Widget editor = QuillEditor.basic(
-      controller: controller,
-      focusNode: _focusNode,
-      config: QuillEditorConfig(
-        scrollable: true,
-        padding: const EdgeInsets.all(16),
-        autoFocus: false,
-        placeholder: 'Start writing...',
-        showCursor: !widget.readOnly,
-        enableInteractiveSelection: true,
-        expands: false,
-        keyboardAppearance: Brightness.light,
-        onTapUp: (details, p1) {
-          // Always ensure focus when tapping
-          if (!widget.readOnly) {
-            _focusNode.requestFocus();
-          }
-          return false;
-        },
-      ),
-    );
-
-    editor = DefaultTextStyle.merge(
-      style: const TextStyle(
-        fontFamily: 'RobotoMono',
-        fontFamilyFallback: ['Source Code Pro', 'Menlo', 'monospace', 'Courier New', 'Courier'],
-        height: 1.3,
-      ),
-      child: editor,
-    );
-
-    if (shortcutBindings.isNotEmpty) {
-      editor = CallbackShortcuts(
-        bindings: shortcutBindings,
-        child: editor,
-      );
-    }
-
-    return editor;
-  }
-
-  Map<ShortcutActivator, VoidCallback> _buildEditorShortcuts(WidgetRef ref, QuillController controller) {
-    if (widget.readOnly) {
-      return const <ShortcutActivator, VoidCallback>{};
-    }
-
-    final notifier = ref.read(editor_provider.editorProvider(widget.noteId).notifier);
-
-    void handleUndo() {
-      if (!_focusNode.hasFocus) return;
-      controller.undo();
-    }
-
-    void handleRedo() {
-      if (!_focusNode.hasFocus) return;
-      controller.redo();
-    }
-
-    void handlePaste() {
-      if (!_focusNode.hasFocus) return;
-      notifier.handlePaste();
-    }
-
-    return <ShortcutActivator, VoidCallback>{
-      const SingleActivator(LogicalKeyboardKey.keyZ, control: true): handleUndo,
-      const SingleActivator(LogicalKeyboardKey.keyZ, meta: true): handleUndo,
-      const SingleActivator(LogicalKeyboardKey.keyZ, control: true, shift: true): handleRedo,
-      const SingleActivator(LogicalKeyboardKey.keyZ, meta: true, shift: true): handleRedo,
-      const SingleActivator(LogicalKeyboardKey.keyY, control: true): handleRedo,
-      const SingleActivator(LogicalKeyboardKey.keyY, meta: true): handleRedo,
-      const SingleActivator(LogicalKeyboardKey.keyV, control: true): handlePaste,
-      const SingleActivator(LogicalKeyboardKey.keyV, meta: true): handlePaste,
-    };
   }
 }

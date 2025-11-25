@@ -1,4 +1,4 @@
-import 'package:drift/drift.dart';
+﻿import 'package:drift/drift.dart';
 
 /// Groups table for organizing notes
 class Groups extends Table {
@@ -19,9 +19,9 @@ class Groups extends Table {
 class Notes extends Table {
   IntColumn get id => integer().autoIncrement()();
   TextColumn get title => text().withLength(min: 1, max: 200)();
-  TextColumn get content => text()(); // Quill Delta JSON
-  TextColumn get markdown => text()(); // Derived markdown for export
-  TextColumn get plainText => text()(); // For search
+  TextColumn get content => text()(); // Plain text content
+  TextColumn get markdown => text()(); // No longer used (kept for compatibility)
+  TextColumn get plainText => text()(); // Same as content (kept for compatibility)
   IntColumn get groupId => integer().references(Groups, #id)();
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
   DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();

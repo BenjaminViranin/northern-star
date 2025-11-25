@@ -68,6 +68,9 @@ class AppDatabase extends _$AppDatabase {
 
   Future<int> softDeleteNote(int id) => (update(notes)..where((n) => n.id.equals(id))).write(const NotesCompanion(isDeleted: Value(true)));
 
+  // Watch note changes
+  Stream<Note?> watchNoteById(int id) => (select(notes)..where((n) => n.id.equals(id) & n.isDeleted.equals(false))).watchSingleOrNull();
+
   // Sync queue operations
   Future<List<SyncQueueData>> getPendingSyncOperations() => select(syncQueue).get();
 
@@ -129,7 +132,17 @@ LazyDatabase _openConnection() {
     final cachebase = (await getTemporaryDirectory()).path;
     sqlite3.tempDirectory = cachebase;
 
-    return NativeDatabase.createInBackground(file);
+    return NativeDatabase.createInBackground(
+      file,
+      setup: (database) {
+        // Set busy timeout to 5 seconds to prevent database lock errors
+        database.execute('PRAGMA busy_timeout = 5000');
+        // Enable WAL mode for better concurrency
+        database.execute('PRAGMA journal_mode = WAL');
+        // Optimize for performance
+        database.execute('PRAGMA synchronous = NORMAL');
+      },
+    );
   });
 }
 
@@ -147,6 +160,16 @@ LazyDatabase _openConnectionForUser(String userId) {
     final cachebase = (await getTemporaryDirectory()).path;
     sqlite3.tempDirectory = cachebase;
 
-    return NativeDatabase.createInBackground(file);
+    return NativeDatabase.createInBackground(
+      file,
+      setup: (database) {
+        // Set busy timeout to 5 seconds to prevent database lock errors
+        database.execute('PRAGMA busy_timeout = 5000');
+        // Enable WAL mode for better concurrency
+        database.execute('PRAGMA journal_mode = WAL');
+        // Optimize for performance
+        database.execute('PRAGMA synchronous = NORMAL');
+      },
+    );
   });
 }

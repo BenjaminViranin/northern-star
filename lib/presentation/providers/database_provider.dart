@@ -129,6 +129,9 @@ final groupsProvider = StreamProvider<List<Group>>((ref) {
   return Stream.periodic(const Duration(seconds: 1)).asyncMap((_) => repository.getAllGroups());
 });
 
+// Current note ID provider (for tracking selected note)
+final currentNoteIdProvider = StateProvider<int?>((ref) => null);
+
 // Selected group provider for filtering
 final selectedGroupProvider = StateProvider<int?>((ref) => null);
 

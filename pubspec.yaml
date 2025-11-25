@@ -34,8 +34,6 @@ dependencies:
     # UI and Icons
     cupertino_icons: ^1.0.2
 
-    # Rich Text Editor
-    flutter_quill: 11.5.0
 
     # Database and Storage
     drift: ^2.14.1
