@@ -31,13 +31,10 @@ class NotesRepository {
     required int groupId,
   }) async {
     final now = DateTime.now();
-    final plainText = content; // Content is already plain text
 
     final note = NotesCompanion(
       title: Value(title),
       content: Value(content),
-      markdown: const Value(''), // No longer used
-      plainText: Value(plainText),
       groupId: Value(groupId),
       createdAt: Value(now),
       updatedAt: Value(now),
@@ -51,8 +48,6 @@ class NotesRepository {
       'client_id': _uuid.v4(), // Unique client ID for sync
       'title': title,
       'content': content,
-      'markdown': '',
-      'plain_text': plainText,
       'group_id': groupId,
       'created_at': now.toIso8601String(),
       'updated_at': now.toIso8601String(),
@@ -71,17 +66,10 @@ class NotesRepository {
     int? groupId,
   }) async {
     final now = DateTime.now();
-    String? plainText;
-
-    if (content != null) {
-      plainText = content; // Content is already plain text
-    }
 
     final note = NotesCompanion(
       title: title != null ? Value(title) : const Value.absent(),
       content: content != null ? Value(content) : const Value.absent(),
-      markdown: const Value(''), // No longer used
-      plainText: plainText != null ? Value(plainText) : const Value.absent(),
       groupId: groupId != null ? Value(groupId) : const Value.absent(),
       updatedAt: Value(now),
       needsSync: const Value(true),
@@ -99,8 +87,6 @@ class NotesRepository {
         'id': currentNote.supabaseId,
         'title': title ?? currentNote.title,
         'content': content ?? currentNote.content,
-        'markdown': '',
-        'plain_text': plainText ?? currentNote.plainText,
         'group_id': groupId ?? currentNote.groupId,
         'updated_at': now.toIso8601String(),
       });
@@ -133,8 +119,7 @@ class NotesRepository {
   Future<List<Note>> searchNotes(String query) async {
     final allNotes = await getAllNotes();
     return allNotes
-        .where(
-            (note) => note.title.toLowerCase().contains(query.toLowerCase()) || note.plainText.toLowerCase().contains(query.toLowerCase()))
+        .where((note) => note.title.toLowerCase().contains(query.toLowerCase()) || note.content.toLowerCase().contains(query.toLowerCase()))
         .toList();
   }
 

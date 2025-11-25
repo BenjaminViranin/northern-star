@@ -280,7 +280,7 @@ class SidebarNavigation extends ConsumerWidget {
           final filteredNotes = searchQuery.isEmpty
               ? notesList
               : notesList
-                  .where((note) => note.title.toLowerCase().contains(searchQuery) || note.plainText.toLowerCase().contains(searchQuery))
+                  .where((note) => note.title.toLowerCase().contains(searchQuery) || note.content.toLowerCase().contains(searchQuery))
                   .toList();
 
           // If searching, show flat list of matching notes
