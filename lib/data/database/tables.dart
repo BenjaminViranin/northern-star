@@ -49,7 +49,7 @@ class LocalHistory extends Table {
   TextColumn get entityTable => text()(); // 'notes' or 'groups'
   IntColumn get recordId => integer()();
   TextColumn get data => text()(); // JSON snapshot
-  TextColumn get operation => text()(); // 'conflict_backup', 'manual_backup'
+  TextColumn get operation => text()(); // 'conflict_backup', 'manual_backup', 'server_conflict'
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
 }
 

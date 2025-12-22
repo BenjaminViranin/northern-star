@@ -265,58 +265,37 @@ class SyncService {
               isDeleted: Value(true),
               needsSync: Value(false),
             ));
-        print('📥 Soft deleted local group from server realtime');
+        print('Soft deleted local group from server realtime');
       }
     } else if (table == 'notes') {
       final localNotes = await _database.getAllNotes();
       final existingNote = localNotes.where((n) => n.supabaseId == supabaseId).firstOrNull;
 
       if (existingNote != null && !existingNote.isDeleted) {
-        await _database.updateNote(
-            existingNote.id,
-            const NotesCompanion(
-              isDeleted: Value(true),
-              needsSync: Value(false),
-            ));
-        print('📥 Soft deleted local note from server realtime');
+        await _recordServerConflict('notes', existingNote.id, {
+          'id': supabaseId,
+          'is_deleted': true,
+          'updated_at': DateTime.now().toIso8601String(),
+        }, 'server_delete');
+        await _markNoteNeedsSync(existingNote.id);
+        print('Preserved local note after server delete event');
       }
     }
   }
 
   Future<void> _handleConflict(String table, int localId, Map<String, dynamic> serverData) async {
-    // Simple conflict resolution: last-write-wins based on timestamp
-    // In a more sophisticated implementation, you might want to:
-    // 1. Show a conflict resolution UI to the user
-    // 2. Implement automatic merging strategies
-    // 3. Create conflict backup records
-
-    final serverUpdatedAt = DateTime.parse(serverData['updated_at']);
-
+    // Preserve local data and record the server version for manual resolution.
     if (table == 'groups') {
       final localGroup = await _database.getGroupById(localId);
       if (localGroup != null) {
-        if (serverUpdatedAt.isAfter(localGroup.updatedAt)) {
-          // Server wins - backup local version and apply server changes
-          await _createConflictBackup(table, localId, localGroup.toJson());
-          await _mergeGroupsFromServer([serverData]);
-          print('⚠️ Conflict resolved: Server version applied for group ${localGroup.name}');
-        } else {
-          // Local wins - keep local changes and they will sync later
-          print('⚠️ Conflict resolved: Local version kept for group ${localGroup.name}');
-        }
+        await _recordServerConflict(table, localId, serverData, 'realtime_conflict');
+        print('Conflict preserved: Local version kept for group ${localGroup.name}');
       }
     } else if (table == 'notes') {
       final localNote = await _database.getNoteById(localId);
       if (localNote != null) {
-        if (serverUpdatedAt.isAfter(localNote.updatedAt)) {
-          // Server wins - backup local version and apply server changes
-          await _createConflictBackup(table, localId, localNote.toJson());
-          await _mergeNotesFromServer([serverData]);
-          print('⚠️ Conflict resolved: Server version applied for note ${localNote.title}');
-        } else {
-          // Local wins - keep local changes and they will sync later
-          print('⚠️ Conflict resolved: Local version kept for note ${localNote.title}');
-        }
+        await _recordServerConflict(table, localId, serverData, 'realtime_conflict');
+        print('Conflict preserved: Local version kept for note ${localNote.title}');
       }
     }
   }
@@ -328,6 +307,38 @@ class SyncService {
       data: Value(jsonEncode(localData)),
       operation: const Value('conflict_backup'),
     ));
+  }
+
+  Future<void> _recordServerConflict(String table, int localId, Map<String, dynamic> serverData, String reason) async {
+    final payload = Map<String, dynamic>.from(serverData);
+    payload['conflict_reason'] = reason;
+
+    await _database.addToLocalHistory(LocalHistoryCompanion(
+      entityTable: Value(table),
+      recordId: Value(localId),
+      data: Value(jsonEncode(payload)),
+      operation: const Value('server_conflict'),
+    ));
+  }
+
+  Future<void> _markNoteNeedsSync(int localId) async {
+    await _database.updateNote(
+      localId,
+      NotesCompanion(
+        needsSync: const Value(true),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
+  String _resolveNoteContent(String localContent, dynamic serverContent) {
+    if (serverContent is! String) {
+      return localContent;
+    }
+    if (serverContent.trim().isEmpty && localContent.trim().isNotEmpty) {
+      return localContent;
+    }
+    return serverContent;
   }
 
   Future<void> _performSync() async {
@@ -874,20 +885,19 @@ class SyncService {
   /// Merges notes from server into local database
   Future<void> _mergeNotesFromServer(List<dynamic> serverNotes) async {
     try {
-      print('🔄 Merging ${serverNotes.length} notes from server');
+      print('Merging ${serverNotes.length} notes from server');
       for (final serverNote in serverNotes) {
         if (serverNote is! Map<String, dynamic>) {
-          print('❌ Invalid note data type: ${serverNote.runtimeType}');
+          print('Invalid note data type: ${serverNote.runtimeType}');
           continue;
         }
         final supabaseId = serverNote['id'] as String;
         final serverUpdatedAt = DateTime.parse(serverNote['updated_at']);
+        final serverDeleted = serverNote['is_deleted'] == true;
 
-        // Check if we already have this note locally
         final localNotes = await _database.getAllNotes();
         final existingNote = localNotes.where((n) => n.supabaseId == supabaseId).firstOrNull;
 
-        // Map server group_id to local group_id
         int? localGroupId;
         if (serverNote['group_id'] != null) {
           final serverGroupId = serverNote['group_id'] as String;
@@ -897,7 +907,9 @@ class SyncService {
         }
 
         if (existingNote == null) {
-          // New note from server - create locally
+          if (serverDeleted) {
+            continue;
+          }
           if (localGroupId != null) {
             await _database.insertNote(NotesCompanion(
               title: Value(serverNote['title']),
@@ -905,37 +917,53 @@ class SyncService {
               groupId: Value(localGroupId),
               createdAt: Value(DateTime.parse(serverNote['created_at'])),
               updatedAt: Value(serverUpdatedAt),
-              isDeleted: Value(serverNote['is_deleted'] ?? false),
+              isDeleted: Value(serverDeleted),
               supabaseId: Value(supabaseId),
               version: Value(serverNote['version'] ?? 1),
               needsSync: const Value(false),
             ));
-            print('📥 Created local note from server: ${serverNote['title']}');
+            print('Created local note from server: ${serverNote['title']}');
           } else {
-            print('⚠️ Skipping note from server - group not found: ${serverNote['title']}');
+            print('Skipping note from server - group not found: ${serverNote['title']}');
           }
-        } else {
-          // Check for conflicts and merge
-          if (serverUpdatedAt.isAfter(existingNote.updatedAt) && localGroupId != null) {
-            // Server version is newer - update local
-            await _database.updateNote(
-                existingNote.id,
-                NotesCompanion(
-                  title: Value(serverNote['title']),
-                  content: Value(serverNote['content']),
-                  groupId: Value(localGroupId),
-                  updatedAt: Value(serverUpdatedAt),
-                  isDeleted: Value(serverNote['is_deleted'] ?? false),
-                  version: Value(serverNote['version'] ?? 1),
-                  needsSync: const Value(false),
-                ));
-            print('📥 Updated local note from server: ${serverNote['title']}');
+          continue;
+        }
+
+        if (serverDeleted && !existingNote.isDeleted) {
+          await _recordServerConflict('notes', existingNote.id, serverNote, 'server_deleted');
+          await _markNoteNeedsSync(existingNote.id);
+          print('Preserved local note after server delete update: ${existingNote.title}');
+          continue;
+        }
+
+        if (existingNote.needsSync) {
+          await _recordServerConflict('notes', existingNote.id, serverNote, 'local_unsynced');
+          print('Preserved local note with unsynced changes: ${existingNote.title}');
+          continue;
+        }
+
+        if (serverUpdatedAt.isAfter(existingNote.updatedAt) && localGroupId != null) {
+          final resolvedContent = _resolveNoteContent(existingNote.content, serverNote['content']);
+          if (resolvedContent != existingNote.content) {
+            await _createConflictBackup('notes', existingNote.id, existingNote.toJson());
           }
-          // If local is newer or same, keep local version
+
+          await _database.updateNote(
+              existingNote.id,
+              NotesCompanion(
+                title: Value(serverNote['title'] ?? existingNote.title),
+                content: Value(resolvedContent),
+                groupId: Value(localGroupId),
+                updatedAt: Value(serverUpdatedAt),
+                isDeleted: Value(serverDeleted),
+                version: Value(serverNote['version'] ?? existingNote.version),
+                needsSync: const Value(false),
+              ));
+          print('Updated local note from server: ${serverNote['title']}');
         }
       }
     } catch (e, stackTrace) {
-      print('❌ Error merging notes from server: $e');
+      print('Error merging notes from server: $e');
       print('Stack trace: $stackTrace');
       rethrow;
     }
@@ -943,6 +971,13 @@ class SyncService {
 
   // Manual sync trigger
   Future<void> forceSync() async {
+    if (!_isInitialized) {
+      await initialize();
+    }
+    if (_globalSyncInProgress || _isSyncing) {
+      onSyncErrorChanged?.call('Sync already in progress');
+      return;
+    }
     await _performSync();
   }
 
