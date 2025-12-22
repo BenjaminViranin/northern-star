@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:drift/drift.dart';
 
 import '../database/database.dart';
+import '../models/note_history_entry.dart';
 import '../../core/config/supabase_config.dart';
 import '../../core/constants/app_constants.dart';
 
@@ -966,6 +967,212 @@ class SyncService {
       print('Error merging notes from server: $e');
       print('Stack trace: $stackTrace');
       rethrow;
+    }
+  }
+
+  Future<List<NoteHistoryEntry>> getNoteHistory(int localNoteId) async {
+    if (!SupabaseConfig.isAuthenticated) {
+      return const [];
+    }
+
+    final localNote = await _database.getNoteByIdIncludingDeleted(localNoteId);
+    final supabaseId = localNote?.supabaseId;
+    if (supabaseId == null) {
+      return const [];
+    }
+
+    final response = await SupabaseConfig.client
+        .from('entity_history')
+        .select('id, operation, changed_at, data')
+        .eq('entity_table', 'notes')
+        .eq('entity_id', supabaseId)
+        .order('changed_at', ascending: false);
+
+    if (response is! List) {
+      return const [];
+    }
+
+    return response
+        .whereType<Map>()
+        .map((entry) => NoteHistoryEntry.fromJson(Map<String, dynamic>.from(entry)))
+        .toList();
+  }
+
+  Future<NoteHistoryRestoreResult> restoreNoteHistory(int localNoteId, NoteHistoryEntry entry) async {
+    if (!SupabaseConfig.isAuthenticated) {
+      throw Exception('Not authenticated');
+    }
+
+    final localNote = await _database.getNoteByIdIncludingDeleted(localNoteId);
+    final supabaseId = localNote?.supabaseId;
+    if (localNote == null || supabaseId == null) {
+      throw Exception('Note not synced');
+    }
+
+    final response = await SupabaseConfig.client.rpc('restore_note_history', params: {
+      'note_id': supabaseId,
+      'history_id': entry.id,
+    });
+
+    if (response is! Map) {
+      return const NoteHistoryRestoreResult(applied: false);
+    }
+
+    final applied = response['applied'] == true;
+    final noteData = response['note'] is Map<String, dynamic> ? response['note'] as Map<String, dynamic> : null;
+
+    if (applied && noteData != null) {
+      await _applyRestoredNoteToLocal(localNote, noteData);
+      await _clearPendingNoteOps(localNote.id);
+    }
+
+    return NoteHistoryRestoreResult(applied: applied, note: noteData);
+  }
+
+  Future<void> _applyRestoredNoteToLocal(Note localNote, Map<String, dynamic> serverNote) async {
+    final serverGroupId = serverNote['group_id'] as String?;
+    final localGroupId = await _mapServerGroupIdToLocal(serverGroupId);
+    final updatedAt = DateTime.tryParse(serverNote['updated_at'] as String? ?? '') ?? DateTime.now();
+
+    await _database.updateNote(
+      localNote.id,
+      NotesCompanion(
+        title: Value(serverNote['title'] as String? ?? localNote.title),
+        content: Value(serverNote['content'] as String? ?? localNote.content),
+        groupId: Value(localGroupId),
+        updatedAt: Value(updatedAt),
+        isDeleted: const Value(false),
+        needsSync: const Value(false),
+        supabaseId: Value(localNote.supabaseId ?? serverNote['id'] as String),
+      ),
+    );
+  }
+
+  Future<int> _mapServerGroupIdToLocal(String? serverGroupId) async {
+    if (serverGroupId == null) {
+      return _ensureLocalUncategorizedGroupId();
+    }
+
+    final localGroups = await _database.getAllGroups();
+    final match = localGroups.where((g) => g.supabaseId == serverGroupId).firstOrNull;
+    if (match != null) {
+      return match.id;
+    }
+
+    final createdId = await _createLocalGroupFromServer(serverGroupId);
+    if (createdId != null) {
+      return createdId;
+    }
+
+    return _ensureLocalUncategorizedGroupId();
+  }
+
+  Future<int> _ensureLocalUncategorizedGroupId() async {
+    final localGroups = await _database.getAllGroups();
+    final existing = localGroups.where((g) => g.name == 'Uncategorized').firstOrNull;
+    if (existing != null) {
+      final serverUncategorizedId = await _fetchServerUncategorizedId();
+      if (existing.supabaseId == null && serverUncategorizedId != null) {
+        await _database.updateGroup(
+          existing.id,
+          GroupsCompanion(
+            supabaseId: Value(serverUncategorizedId),
+            needsSync: const Value(false),
+          ),
+        );
+      }
+      return existing.id;
+    }
+
+    final resolvedServerGroupId = await _fetchServerUncategorizedId();
+
+    final now = DateTime.now();
+    final id = await _database.insertGroup(GroupsCompanion(
+      name: const Value('Uncategorized'),
+      color: const Value('#134e4a'),
+      createdAt: Value(now),
+      updatedAt: Value(now),
+      isDeleted: const Value(false),
+      supabaseId: resolvedServerGroupId != null ? Value(resolvedServerGroupId) : const Value.absent(),
+      needsSync: const Value(false),
+    ));
+
+    return id;
+  }
+
+  Future<int?> _createLocalGroupFromServer(String serverGroupId) async {
+    if (!SupabaseConfig.isAuthenticated) {
+      return null;
+    }
+
+    final response = await SupabaseConfig.client
+        .from('groups')
+        .select('id, name, color, created_at, updated_at, is_deleted')
+        .eq('id', serverGroupId)
+        .limit(1);
+
+    if (response is! List || response.isEmpty) {
+      return null;
+    }
+
+    final data = response.first;
+    if (data is! Map) {
+      return null;
+    }
+
+    if (data['is_deleted'] == true) {
+      return null;
+    }
+
+    final createdAt = DateTime.tryParse(data['created_at'] as String? ?? '') ?? DateTime.now();
+    final updatedAt = DateTime.tryParse(data['updated_at'] as String? ?? '') ?? DateTime.now();
+
+    final id = await _database.insertGroup(GroupsCompanion(
+      name: Value(data['name'] as String? ?? 'Uncategorized'),
+      color: Value(data['color'] as String? ?? '#134e4a'),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+      isDeleted: const Value(false),
+      supabaseId: Value(serverGroupId),
+      needsSync: const Value(false),
+    ));
+
+    return id;
+  }
+
+  Future<String?> _fetchServerUncategorizedId() async {
+    if (!SupabaseConfig.isAuthenticated) {
+      return null;
+    }
+
+    final userId = SupabaseConfig.currentUser?.id;
+    if (userId == null) {
+      return null;
+    }
+
+    final serverGroups = await SupabaseConfig.client
+        .from('groups')
+        .select('id')
+        .eq('user_id', userId)
+        .eq('name', 'Uncategorized')
+        .limit(1);
+
+    if (serverGroups is List && serverGroups.isNotEmpty) {
+      final first = serverGroups.first;
+      if (first is Map && first['id'] != null) {
+        return first['id'] as String;
+      }
+    }
+
+    return null;
+  }
+
+  Future<void> _clearPendingNoteOps(int localNoteId) async {
+    final pendingOps = await _database.getPendingSyncOperations();
+    for (final op in pendingOps) {
+      if (op.entityTable == 'notes' && op.localId == localNoteId) {
+        await _database.removeSyncOperation(op.id);
+      }
     }
   }
 

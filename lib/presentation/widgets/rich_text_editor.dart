@@ -122,7 +122,7 @@ class _RichTextEditorState extends ConsumerState<RichTextEditor> {
           color: AppTheme.textPrimary,
           fontSize: 16,
           height: 1.5,
-          fontWeight: FontWeight.w200,
+          fontWeight: FontWeight.w100,
           fontFamily: 'JetBrains Mono',
           fontFamilyFallback: ['Consolas', 'Courier New', 'Courier', 'monospace'],
         ),
@@ -130,7 +130,7 @@ class _RichTextEditorState extends ConsumerState<RichTextEditor> {
           hintText: 'Start writing...',
           hintStyle: TextStyle(
             color: AppTheme.textSecondary,
-            fontWeight: FontWeight.w200,
+            fontWeight: FontWeight.w100,
             fontFamily: 'JetBrains Mono',
             fontFamilyFallback: ['Consolas', 'Courier New', 'Courier', 'monospace'],
           ),

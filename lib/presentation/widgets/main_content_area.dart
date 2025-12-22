@@ -10,6 +10,7 @@ import '../providers/database_provider.dart';
 import '../providers/editor_mode_provider.dart';
 import '../dialogs/rename_note_dialog.dart';
 import '../dialogs/move_note_dialog.dart';
+import '../dialogs/note_history_dialog.dart';
 
 class MainContentArea extends ConsumerWidget {
   const MainContentArea({super.key});
@@ -70,6 +71,7 @@ class MainContentArea extends ConsumerWidget {
   Widget _buildMobileNoteView(BuildContext context, WidgetRef ref, NavigationState navigationState) {
     final noteId = navigationState.selectedNoteId!;
     final noteAsync = ref.watch(noteByIdProvider(noteId));
+    final isAuthenticated = ref.watch(isAuthenticatedProvider);
 
     return Column(
       children: [
@@ -141,6 +143,19 @@ class MainContentArea extends ConsumerWidget {
                   ),
                 ),
               ),
+              IconButton(
+                icon: const Icon(Icons.history, color: AppTheme.textPrimary),
+                tooltip: 'Note history',
+                onPressed: () async {
+                  final note = await ref.read(notesRepositoryProvider).getNoteById(noteId);
+                  final historyEnabled = isAuthenticated && note?.supabaseId != null;
+                  if (!historyEnabled) {
+                        showHistoryUnavailable(context);
+                        return;
+                      }
+                      showNoteHistoryDialog(context, noteId);
+                    },
+                  ),
               // Note actions menu
               IconButton(
                 icon: Icon(
@@ -408,6 +423,7 @@ class MainContentArea extends ConsumerWidget {
   Widget _buildNoteHeader(BuildContext context, WidgetRef ref, NavigationState navigationState) {
     final noteId = navigationState.selectedNoteId!;
     final noteAsync = ref.watch(noteByIdProvider(noteId));
+    final isAuthenticated = ref.watch(isAuthenticatedProvider);
 
     return noteAsync.when(
       data: (note) {
@@ -432,6 +448,8 @@ class MainContentArea extends ConsumerWidget {
             ),
           );
         }
+
+        final historyEnabled = isAuthenticated && note.supabaseId != null;
 
         return Container(
           padding: const EdgeInsets.all(16),
@@ -478,6 +496,17 @@ class MainContentArea extends ConsumerWidget {
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
+                  IconButton(
+                    icon: const Icon(Icons.history, size: 20),
+                    tooltip: historyEnabled ? 'Note history' : 'Note history unavailable',
+                    onPressed: () {
+                      if (!historyEnabled) {
+                        showHistoryUnavailable(context);
+                        return;
+                      }
+                      showNoteHistoryDialog(context, note.id);
+                    },
+                  ),
                   IconButton(
                     icon: Icon(
                       ref.watch(editorModeProvider) ? Icons.visibility : Icons.visibility_off,
@@ -1211,6 +1240,7 @@ class GroupsManagementView extends ConsumerWidget {
         break;
     }
   }
+
 }
 
 void showRenameNoteDialog(BuildContext context, WidgetRef ref, dynamic note) {
@@ -1224,5 +1254,18 @@ void showMoveNoteDialog(BuildContext context, WidgetRef ref, dynamic note) {
   showDialog(
     context: context,
     builder: (context) => MoveNoteDialog(note: note),
+  );
+}
+
+void showNoteHistoryDialog(BuildContext context, int noteId) {
+  showDialog(
+    context: context,
+    builder: (context) => NoteHistoryDialog(noteId: noteId),
+  );
+}
+
+void showHistoryUnavailable(BuildContext context) {
+  ScaffoldMessenger.of(context).showSnackBar(
+    const SnackBar(content: Text('Note history is available after sync')),
   );
 }
