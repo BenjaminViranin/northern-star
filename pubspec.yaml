@@ -122,3 +122,9 @@ flutter:
     #
     # For details regarding fonts from package dependencies,
     # see https://flutter.dev/custom-fonts/#from-packages
+    fonts:
+      - family: JetBrains Mono
+        fonts:
+          - asset: fonts/fonts/ttf/JetBrainsMono-Regular.ttf
+          - asset: fonts/fonts/ttf/JetBrainsMono-Italic.ttf
+            style: italic

@@ -151,7 +151,7 @@ class _CreateNoteDialogState extends ConsumerState<CreateNoteDialog> {
       final repository = ref.read(notesRepositoryProvider);
       final noteId = await repository.createNote(
         title: _titleController.text.trim(),
-        content: '[{"insert":"\\n"}]', // Valid Quill Delta with newline
+        content: '',
         groupId: _selectedGroupId!,
       );
 
