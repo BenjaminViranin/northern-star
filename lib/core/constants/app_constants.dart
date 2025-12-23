@@ -10,6 +10,7 @@ class AppConstants {
 
   // Autosave
   static const Duration autosaveDebounce = Duration(milliseconds: 300);
+  static const Duration noteSnapshotDebounce = Duration(seconds: 2);
 
   // Sync
   static const Duration syncRetryDelay = Duration(seconds: 30);

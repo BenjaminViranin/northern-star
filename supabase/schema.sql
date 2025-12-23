@@ -153,7 +153,7 @@ $$ language 'plpgsql' SECURITY DEFINER SET search_path = public;
 GRANT EXECUTE ON FUNCTION restore_note_history(UUID, BIGINT) TO authenticated;
 
 CREATE TRIGGER notes_history_trigger
-    AFTER INSERT OR UPDATE OR DELETE ON notes
+    AFTER INSERT OR DELETE ON notes
     FOR EACH ROW EXECUTE FUNCTION log_entity_history();
 
 CREATE TRIGGER groups_history_trigger

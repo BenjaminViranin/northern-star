@@ -1029,6 +1029,49 @@ class SyncService {
     return NoteHistoryRestoreResult(applied: applied, note: noteData);
   }
 
+  Future<void> recordNoteSnapshot({
+    required int localNoteId,
+    required String content,
+    required String operation,
+  }) async {
+    if (!SupabaseConfig.isAuthenticated) {
+      return;
+    }
+
+    final userId = SupabaseConfig.currentUser?.id;
+    if (userId == null) {
+      return;
+    }
+
+    final localNote = await _database.getNoteByIdIncludingDeleted(localNoteId);
+    final supabaseId = localNote?.supabaseId;
+    if (localNote == null || supabaseId == null) {
+      return;
+    }
+
+    final group = await _database.getGroupByIdIncludingDeleted(localNote.groupId);
+    final supabaseGroupId = group?.supabaseId;
+
+    final data = <String, dynamic>{
+      'title': localNote.title,
+      'content': content,
+      'group_id': supabaseGroupId,
+      'updated_at': localNote.updatedAt.toIso8601String(),
+    };
+
+    try {
+      await SupabaseConfig.client.from('entity_history').insert({
+        'entity_table': 'notes',
+        'entity_id': supabaseId,
+        'user_id': userId,
+        'operation': operation,
+        'data': data,
+      });
+    } catch (e) {
+      print('Failed to record note snapshot: $e');
+    }
+  }
+
   Future<void> _applyRestoredNoteToLocal(Note localNote, Map<String, dynamic> serverNote) async {
     final serverGroupId = serverNote['group_id'] as String?;
     final localGroupId = await _mapServerGroupIdToLocal(serverGroupId);

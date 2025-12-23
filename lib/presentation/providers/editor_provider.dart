@@ -52,10 +52,12 @@ class EditorNotifier extends StateNotifier<EditorState> {
   StreamSubscription? _debounceSubscription;
   StreamSubscription? _noteUpdateSubscription;
   final _contentSubject = BehaviorSubject<String>();
+  Timer? _snapshotTimer;
   bool _isUpdatingFromDatabase = false;
   bool _hasEditorFocus = false;
   String? _lastKnownContent;
   bool _isSaving = false; // Lock to prevent concurrent saves
+  bool _editingSessionActive = false;
 
   EditorNotifier(this.ref, this.noteId)
       : super(EditorState(
@@ -71,6 +73,7 @@ class EditorNotifier extends StateNotifier<EditorState> {
   void dispose() {
     _debounceSubscription?.cancel();
     _noteUpdateSubscription?.cancel();
+    _snapshotTimer?.cancel();
     _contentSubject.close();
     state.controller.removeListener(_onContentChanged);
     state.controller.dispose();
@@ -125,6 +128,8 @@ class EditorNotifier extends StateNotifier<EditorState> {
 
   void _updateEditorFromDatabase(Note note) {
     _isUpdatingFromDatabase = true;
+    _snapshotTimer?.cancel();
+    _editingSessionActive = false;
 
     final currentSelection = state.controller.selection;
     state.controller.text = note.content;
@@ -147,9 +152,38 @@ class EditorNotifier extends StateNotifier<EditorState> {
 
     state = state.copyWith(hasUnsavedChanges: hasChanges);
 
-    if (hasChanges) {
-      _contentSubject.add(content);
+    if (!hasChanges) {
+      _snapshotTimer?.cancel();
+      _editingSessionActive = false;
+      return;
     }
+
+    if (!_editingSessionActive) {
+      _editingSessionActive = true;
+      final baselineContent = state.lastSavedContent ?? _lastKnownContent ?? '';
+      unawaited(_recordSnapshot(baselineContent, 'baseline'));
+    }
+
+    _contentSubject.add(content);
+    _scheduleSnapshot(content);
+  }
+
+  void _scheduleSnapshot(String content) {
+    _snapshotTimer?.cancel();
+    _snapshotTimer = Timer(AppConstants.noteSnapshotDebounce, () {
+      _snapshotTimer = null;
+      _editingSessionActive = false;
+      unawaited(_recordSnapshot(content, 'snapshot'));
+    });
+  }
+
+  Future<void> _recordSnapshot(String content, String operation) async {
+    if (noteId == null) return;
+    await ref.read(syncServiceProvider).recordNoteSnapshot(
+          localNoteId: noteId!,
+          content: content,
+          operation: operation,
+        );
   }
 
   Future<void> _saveContent(String content) async {
