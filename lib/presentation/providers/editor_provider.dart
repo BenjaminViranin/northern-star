@@ -172,7 +172,6 @@ class EditorNotifier extends StateNotifier<EditorState> {
     _snapshotTimer?.cancel();
     _snapshotTimer = Timer(AppConstants.noteSnapshotDebounce, () {
       _snapshotTimer = null;
-      _editingSessionActive = false;
       unawaited(_recordSnapshot(content, 'snapshot'));
     });
   }
@@ -207,6 +206,7 @@ class EditorNotifier extends StateNotifier<EditorState> {
       );
 
       _lastKnownContent = content;
+      _editingSessionActive = false;
     } catch (e) {
       state = state.copyWith(
         isSaving: false,

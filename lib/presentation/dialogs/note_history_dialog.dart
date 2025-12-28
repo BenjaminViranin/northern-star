@@ -75,51 +75,53 @@ class _NoteHistoryDialogState extends ConsumerState<NoteHistoryDialog> {
               });
             }
 
-            return Row(
-              children: [
-                Expanded(
-                  child: Container(
-                    decoration: BoxDecoration(
-                      border: Border.all(color: AppTheme.border),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: ListView.separated(
-                      itemCount: entries.length,
-                      separatorBuilder: (_, __) => const Divider(height: 1, color: AppTheme.border),
-                      itemBuilder: (context, index) {
-                        final entry = entries[index];
-                        final isSelected = selected.id == entry.id;
-                        return ListTile(
-                          selected: isSelected,
-                          selectedColor: AppTheme.textPrimary,
-                          selectedTileColor: AppTheme.primaryTeal.withOpacity(0.12),
-                          title: Text(
-                            _formatTimestamp(entry.changedAt),
-                            style: const TextStyle(color: AppTheme.textPrimary, fontSize: 13),
-                          ),
-                          subtitle: Text(
-                            _truncate(entry.content, 64),
-                            style: const TextStyle(color: AppTheme.textSecondary, fontSize: 12),
-                          ),
-                          trailing: Text(
-                            entry.operation,
-                            style: const TextStyle(color: AppTheme.textSecondary, fontSize: 11),
-                          ),
-                          onTap: () {
-                            setState(() {
-                              _selected = entry;
-                            });
+            return LayoutBuilder(
+              builder: (context, constraints) {
+                final leftWidth = (constraints.maxWidth * 0.28).clamp(120.0, 200.0);
+                return Row(
+                  children: [
+                    SizedBox(
+                      width: leftWidth,
+                      child: Material(
+                        color: Colors.transparent,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          side: const BorderSide(color: AppTheme.border),
+                        ),
+                        clipBehavior: Clip.antiAlias,
+                        child: ListView.separated(
+                          padding: EdgeInsets.zero,
+                          itemCount: entries.length,
+                          separatorBuilder: (_, __) => const Divider(height: 1, color: AppTheme.border),
+                          itemBuilder: (context, index) {
+                            final entry = entries[index];
+                            final isSelected = selected.id == entry.id;
+                            return ListTile(
+                              dense: true,
+                              selected: isSelected,
+                              selectedColor: AppTheme.textPrimary,
+                              selectedTileColor: AppTheme.primaryTeal.withOpacity(0.12),
+                              title: Text(
+                                _formatTimestamp(entry.changedAt),
+                                style: const TextStyle(color: AppTheme.textPrimary, fontSize: 13),
+                              ),
+                              onTap: () {
+                                setState(() {
+                                  _selected = entry;
+                                });
+                              },
+                            );
                           },
-                        );
-                      },
+                        ),
+                      ),
                     ),
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: _buildPreview(selected),
-                ),
-              ],
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: _buildPreview(selected),
+                    ),
+                  ],
+                );
+              },
             );
           },
         ),
@@ -235,13 +237,6 @@ class _NoteHistoryDialogState extends ConsumerState<NoteHistoryDialog> {
         ],
       ),
     );
-  }
-
-  String _truncate(String value, int maxLength) {
-    if (value.length <= maxLength) {
-      return value;
-    }
-    return '${value.substring(0, maxLength)}...';
   }
 
   String _formatTimestamp(DateTime time) {

@@ -1141,6 +1141,13 @@ class SyncService {
       return;
     }
 
+    if (operation == 'baseline') {
+      final shouldSkip = await _shouldSkipBaselineSnapshot(supabaseId, content);
+      if (shouldSkip) {
+        return;
+      }
+    }
+
     final group = await _database.getGroupByIdIncludingDeleted(localNote.groupId);
     final supabaseGroupId = group?.supabaseId;
 
@@ -1162,6 +1169,34 @@ class SyncService {
     } catch (e) {
       print('Failed to record note snapshot: $e');
     }
+  }
+
+  Future<bool> _shouldSkipBaselineSnapshot(String supabaseId, String content) async {
+    try {
+      final response = await SupabaseConfig.client
+          .from('entity_history')
+          .select('data, operation, changed_at')
+          .eq('entity_table', 'notes')
+          .eq('entity_id', supabaseId)
+          .in_('operation', ['snapshot', 'baseline'])
+          .order('changed_at', ascending: false)
+          .limit(1);
+
+      if (response is List && response.isNotEmpty) {
+        final latest = response.first;
+        if (latest is Map && latest['data'] is Map) {
+          final data = latest['data'] as Map;
+          final lastContent = data['content'];
+          if (lastContent is String && lastContent == content) {
+            return true;
+          }
+        }
+      }
+    } catch (e) {
+      print('Failed to check latest snapshot: $e');
+    }
+
+    return false;
   }
 
   Future<void> _applyRestoredNoteToLocal(Note localNote, Map<String, dynamic> serverNote) async {
