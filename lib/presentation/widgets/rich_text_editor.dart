@@ -24,7 +24,6 @@ class _RichTextEditorState extends ConsumerState<RichTextEditor> {
   @override
   void initState() {
     super.initState();
-    _focusNode.addListener(_onFocusChanged);
   }
 
   @override
@@ -47,15 +46,8 @@ class _RichTextEditorState extends ConsumerState<RichTextEditor> {
 
   @override
   void dispose() {
-    _focusNode.removeListener(_onFocusChanged);
     _focusNode.dispose();
     super.dispose();
-  }
-
-  void _onFocusChanged() {
-    if (widget.noteId != null) {
-      ref.read(editor_provider.editorProvider(widget.noteId).notifier).onEditorFocusChanged(_focusNode.hasFocus);
-    }
   }
 
   @override

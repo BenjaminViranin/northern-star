@@ -14,6 +14,7 @@ class SyncService {
   static SyncService? _instance;
   static AppDatabase? _currentDatabase;
   static bool _globalSyncInProgress = false;
+  static DateTime? _globalSyncStartTime;
   static DateTime? _lastSyncTime;
 
   final AppDatabase _database;
@@ -135,8 +136,12 @@ class SyncService {
     final userId = SupabaseConfig.currentUser?.id;
     if (userId == null) return;
 
+    if (_realtimeChannel != null) {
+      await _realtimeChannel!.unsubscribe();
+    }
+
     _realtimeChannel = SupabaseConfig.client
-        .channel('sync_channel')
+        .channel('sync_channel_$userId')
         .onPostgresChanges(
           event: PostgresChangeEvent.all,
           schema: 'public',
@@ -342,11 +347,18 @@ class SyncService {
     return serverContent;
   }
 
-  Future<void> _performSync() async {
+  Future<void> _performSync({bool forceOverride = false}) async {
     // Global sync lock to prevent multiple sync processes
     if (_globalSyncInProgress || _isSyncing) {
-      print('⏭️ Sync already in progress, skipping...');
-      return;
+      final staleAfter = AppConstants.syncTimeout * 2;
+      if (_globalSyncStartTime != null && DateTime.now().difference(_globalSyncStartTime!) > staleAfter) {
+        print('Sync lock stale, forcing reset');
+        _globalSyncInProgress = false;
+        _isSyncing = false;
+      } else {
+        print('Sync already in progress, skipping...');
+        return;
+      }
     }
 
     final connectivityResult = await _connectivity.checkConnectivity();
@@ -363,15 +375,20 @@ class SyncService {
     // Set global sync lock
     _globalSyncInProgress = true;
     _isSyncing = true;
+    _globalSyncStartTime = DateTime.now();
     onSyncStatusChanged?.call(true);
     onSyncErrorChanged?.call(null);
 
     try {
-      // Process sync queue
-      await _processSyncQueue();
+      if (!forceOverride) {
+        // Process sync queue
+        await _processSyncQueue();
+      } else {
+        print('Force sync: skipping queue push');
+      }
 
       // Pull latest changes from server
-      await _pullFromServer();
+      await _pullFromServer(forceOverride: forceOverride);
 
       // Sync completed successfully
       onLastSyncTimeChanged?.call(DateTime.now());
@@ -382,6 +399,7 @@ class SyncService {
     } finally {
       _isSyncing = false;
       _globalSyncInProgress = false; // Release global sync lock
+      _globalSyncStartTime = null;
       _lastSyncTime = DateTime.now();
       onSyncStatusChanged?.call(false);
     }
@@ -579,6 +597,7 @@ class SyncService {
         needsSync: const Value(false),
       ),
     );
+    await _removeSyncOperationsForRecord('groups', group.id);
 
     print('🔄 Created group on server: ${group.name} (${group.id} -> $supabaseId)');
   }
@@ -645,8 +664,7 @@ class SyncService {
       final supabaseGroupId = await _getSupabaseIdForLocalId('groups', localGroupId);
 
       if (supabaseGroupId == null) {
-        print('⚠️ Skipping note sync - group not synced yet (local group ID: $localGroupId)');
-        return;
+        throw Exception('Cannot create note on server - group not synced yet (local group ID: $localGroupId)');
       }
 
       serverData['group_id'] = supabaseGroupId;
@@ -671,8 +689,7 @@ class SyncService {
     final supabaseId = await _getSupabaseIdForLocalId(table, localId);
 
     if (supabaseId == null) {
-      print('⚠️ Cannot update $table on server - no Supabase ID found for local ID: $localId');
-      return;
+      throw Exception('Cannot update $table on server - no Supabase ID found for local ID: $localId');
     }
 
     // Prepare data for Supabase
@@ -690,8 +707,7 @@ class SyncService {
       final supabaseGroupId = await _getSupabaseIdForLocalId('groups', localGroupId);
 
       if (supabaseGroupId == null) {
-        print('⚠️ Cannot update note on server - group not synced yet (local group ID: $localGroupId)');
-        return;
+        throw Exception('Cannot update note on server - group not synced yet (local group ID: $localGroupId)');
       }
 
       serverData['group_id'] = supabaseGroupId;
@@ -699,6 +715,7 @@ class SyncService {
 
     try {
       await SupabaseConfig.client.from(table).update(serverData).eq('id', supabaseId);
+      await _markLocalSynced(table, localId);
       print('✅ Updated $table on server: $supabaseId');
     } catch (e) {
       print('❌ Failed to update $table on server: $e');
@@ -711,6 +728,7 @@ class SyncService {
     final supabaseId = await _getSupabaseIdForLocalId(table, localId);
 
     if (supabaseId == null) {
+      await _markLocalSynced(table, localId, isDeleted: true, updatedAt: DateTime.now());
       print('✅ Delete operation successful - $table was never synced to server (local ID: $localId)');
       return;
     }
@@ -722,6 +740,7 @@ class SyncService {
         'updated_at': DateTime.now().toIso8601String(),
       }).eq('id', supabaseId);
 
+      await _markLocalSynced(table, localId, isDeleted: true, updatedAt: DateTime.now());
       print('✅ Soft deleted $table on server: $supabaseId');
     } catch (e) {
       print('❌ Failed to delete $table on server: $e');
@@ -786,33 +805,77 @@ class SyncService {
     }
   }
 
-  Future<void> _pullFromServer() async {
+  Future<void> _markLocalSynced(
+    String table,
+    int localId, {
+    DateTime? updatedAt,
+    bool? isDeleted,
+  }) async {
+    if (table == 'groups') {
+      await _database.updateGroup(
+        localId,
+        GroupsCompanion(
+          needsSync: const Value(false),
+          updatedAt: updatedAt != null ? Value(updatedAt) : const Value.absent(),
+          isDeleted: isDeleted != null ? Value(isDeleted) : const Value.absent(),
+        ),
+      );
+    } else if (table == 'notes') {
+      await _database.updateNote(
+        localId,
+        NotesCompanion(
+          needsSync: const Value(false),
+          updatedAt: updatedAt != null ? Value(updatedAt) : const Value.absent(),
+          isDeleted: isDeleted != null ? Value(isDeleted) : const Value.absent(),
+        ),
+      );
+    }
+  }
+
+  Future<void> _removeSyncOperationsForRecord(String table, int localId) async {
+    final pendingOps = await _database.getPendingSyncOperations();
+    for (final op in pendingOps) {
+      if (op.entityTable == table && op.localId == localId) {
+        await _database.removeSyncOperation(op.id);
+      }
+    }
+  }
+
+  Future<void> _pullFromServer({bool forceOverride = false}) async {
     final userId = SupabaseConfig.currentUser?.id;
     if (userId == null) return;
 
     try {
       // Pull groups from server
-      final groupsResponse = await SupabaseConfig.client.from('groups').select().eq('user_id', userId).eq('is_deleted', false);
+      var groupsQuery = SupabaseConfig.client.from('groups').select().eq('user_id', userId);
+      if (!forceOverride) {
+        groupsQuery = groupsQuery.eq('is_deleted', false);
+      }
+      final groupsResponse = await groupsQuery;
 
       // Ensure response is a List
       final groupsList = groupsResponse is List ? groupsResponse : <dynamic>[];
       print('📥 Pulled ${groupsList.length} groups from server');
-      await _mergeGroupsFromServer(groupsList);
+      await _mergeGroupsFromServer(groupsList, forceOverride: forceOverride);
 
       // Pull notes from server
-      final notesResponse = await SupabaseConfig.client.from('notes').select().eq('user_id', userId).eq('is_deleted', false);
+      var notesQuery = SupabaseConfig.client.from('notes').select().eq('user_id', userId);
+      if (!forceOverride) {
+        notesQuery = notesQuery.eq('is_deleted', false);
+      }
+      final notesResponse = await notesQuery;
 
       // Ensure response is a List
       final notesList = notesResponse is List ? notesResponse : <dynamic>[];
       print('📥 Pulled ${notesList.length} notes from server');
-      await _mergeNotesFromServer(notesList);
+      await _mergeNotesFromServer(notesList, forceOverride: forceOverride);
     } catch (e) {
       print('❌ Failed to pull from server: $e');
     }
   }
 
   /// Merges groups from server into local database
-  Future<void> _mergeGroupsFromServer(List<dynamic> serverGroups) async {
+  Future<void> _mergeGroupsFromServer(List<dynamic> serverGroups, {bool forceOverride = false}) async {
     try {
       print('🔄 Merging ${serverGroups.length} groups from server');
       for (final serverGroup in serverGroups) {
@@ -824,7 +887,7 @@ class SyncService {
         final serverUpdatedAt = DateTime.parse(serverGroup['updated_at']);
 
         // Check if we already have this group locally
-        final localGroups = await _database.getAllGroups();
+        final localGroups = forceOverride ? await _database.getAllGroupsIncludingDeleted() : await _database.getAllGroups();
         final existingGroup = localGroups.where((g) => g.supabaseId == supabaseId).firstOrNull;
 
         if (existingGroup == null) {
@@ -843,6 +906,9 @@ class SyncService {
                   version: Value(serverGroup['version'] ?? 1),
                   needsSync: const Value(false),
                 ));
+            if (forceOverride) {
+              await _removeSyncOperationsForRecord('groups', matchingLocalGroup.id);
+            }
             print('📥 Linked local group to server: ${serverGroup['name']} (local ID: ${matchingLocalGroup.id})');
           } else {
             // New group from server - create locally
@@ -859,9 +925,9 @@ class SyncService {
             print('📥 Created local group from server: ${serverGroup['name']}');
           }
         } else {
-          // Check for conflicts and merge
-          if (serverUpdatedAt.isAfter(existingGroup.updatedAt)) {
-            // Server version is newer - update local
+          final shouldOverwrite = forceOverride || serverUpdatedAt.isAfter(existingGroup.updatedAt);
+          if (shouldOverwrite) {
+            // Server version is newer or force override - update local
             await _database.updateGroup(
                 existingGroup.id,
                 GroupsCompanion(
@@ -872,6 +938,9 @@ class SyncService {
                   version: Value(serverGroup['version'] ?? 1),
                   needsSync: const Value(false),
                 ));
+            if (forceOverride) {
+              await _removeSyncOperationsForRecord('groups', existingGroup.id);
+            }
             print('📥 Updated local group from server: ${serverGroup['name']}');
           }
         }
@@ -884,7 +953,7 @@ class SyncService {
   }
 
   /// Merges notes from server into local database
-  Future<void> _mergeNotesFromServer(List<dynamic> serverNotes) async {
+  Future<void> _mergeNotesFromServer(List<dynamic> serverNotes, {bool forceOverride = false}) async {
     try {
       print('Merging ${serverNotes.length} notes from server');
       for (final serverNote in serverNotes) {
@@ -896,15 +965,18 @@ class SyncService {
         final serverUpdatedAt = DateTime.parse(serverNote['updated_at']);
         final serverDeleted = serverNote['is_deleted'] == true;
 
-        final localNotes = await _database.getAllNotes();
+        final localNotes = forceOverride ? await _database.getAllNotesIncludingDeleted() : await _database.getAllNotes();
         final existingNote = localNotes.where((n) => n.supabaseId == supabaseId).firstOrNull;
 
+        final serverGroupId = serverNote['group_id'] as String?;
         int? localGroupId;
-        if (serverNote['group_id'] != null) {
-          final serverGroupId = serverNote['group_id'] as String;
-          final localGroups = await _database.getAllGroups();
+        if (serverGroupId != null) {
+          final localGroups = forceOverride ? await _database.getAllGroupsIncludingDeleted() : await _database.getAllGroups();
           final matchingGroup = localGroups.where((g) => g.supabaseId == serverGroupId).firstOrNull;
           localGroupId = matchingGroup?.id;
+        }
+        if (forceOverride && localGroupId == null) {
+          localGroupId = await _mapServerGroupIdToLocal(serverGroupId);
         }
 
         if (existingNote == null) {
@@ -927,6 +999,26 @@ class SyncService {
           } else {
             print('Skipping note from server - group not found: ${serverNote['title']}');
           }
+          continue;
+        }
+
+        if (forceOverride) {
+          final resolvedGroupId = localGroupId ?? await _ensureLocalUncategorizedGroupId();
+          final serverContent = serverNote['content'];
+          final resolvedContent = serverContent is String ? serverContent : existingNote.content;
+
+          await _database.updateNote(
+              existingNote.id,
+              NotesCompanion(
+                title: Value(serverNote['title'] ?? existingNote.title),
+                content: Value(resolvedContent),
+                groupId: Value(resolvedGroupId),
+                updatedAt: Value(serverUpdatedAt),
+                isDeleted: Value(serverDeleted),
+                version: Value(serverNote['version'] ?? existingNote.version),
+                needsSync: const Value(false),
+              ));
+          await _removeSyncOperationsForRecord('notes', existingNote.id);
           continue;
         }
 
@@ -1220,7 +1312,7 @@ class SyncService {
   }
 
   // Manual sync trigger
-  Future<void> forceSync() async {
+  Future<void> forceSync({bool overrideLocal = true}) async {
     if (!_isInitialized) {
       await initialize();
     }
@@ -1228,7 +1320,7 @@ class SyncService {
       onSyncErrorChanged?.call('Sync already in progress');
       return;
     }
-    await _performSync();
+    await _performSync(forceOverride: overrideLocal);
   }
 
   // Debug information

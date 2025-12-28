@@ -98,7 +98,7 @@ class SettingsTab extends ConsumerWidget {
                                   ? null
                                   : () async {
                                       final syncService = ref.read(syncServiceProvider);
-                                      await syncService.forceSync();
+                                      await syncService.forceSync(overrideLocal: true);
                                     },
                               child: syncStatus == SyncStatus.syncing
                                   ? const SizedBox(

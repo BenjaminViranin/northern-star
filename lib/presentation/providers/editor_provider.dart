@@ -54,7 +54,6 @@ class EditorNotifier extends StateNotifier<EditorState> {
   final _contentSubject = BehaviorSubject<String>();
   Timer? _snapshotTimer;
   bool _isUpdatingFromDatabase = false;
-  bool _hasEditorFocus = false;
   String? _lastKnownContent;
   bool _isSaving = false; // Lock to prevent concurrent saves
   bool _editingSessionActive = false;
@@ -120,7 +119,8 @@ class EditorNotifier extends StateNotifier<EditorState> {
     _noteUpdateSubscription = database.watchNoteById(noteId!).listen((note) {
       if (note == null || _isUpdatingFromDatabase) return;
 
-      if (!_hasEditorFocus && note.content != _lastKnownContent) {
+      final hasLocalEdits = state.hasUnsavedChanges || _isSaving;
+      if (!hasLocalEdits && note.content != _lastKnownContent) {
         _updateEditorFromDatabase(note);
       }
     });
@@ -216,10 +216,6 @@ class EditorNotifier extends StateNotifier<EditorState> {
       // Release lock
       _isSaving = false;
     }
-  }
-
-  void onEditorFocusChanged(bool hasFocus) {
-    _hasEditorFocus = hasFocus;
   }
 
   Future<void> refreshFromDatabase() async {

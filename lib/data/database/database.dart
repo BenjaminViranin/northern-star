@@ -40,6 +40,7 @@ class AppDatabase extends _$AppDatabase {
 
   // Group operations
   Future<List<Group>> getAllGroups() => (select(groups)..where((g) => g.isDeleted.equals(false))).get();
+  Future<List<Group>> getAllGroupsIncludingDeleted() => select(groups).get();
 
   Future<Group?> getGroupById(int id) => (select(groups)..where((g) => g.id.equals(id) & g.isDeleted.equals(false))).getSingleOrNull();
   Future<Group?> getGroupByIdIncludingDeleted(int id) => (select(groups)..where((g) => g.id.equals(id))).getSingleOrNull();
@@ -61,6 +62,7 @@ class AppDatabase extends _$AppDatabase {
         ..where((n) => n.isDeleted.equals(false))
         ..orderBy([(n) => OrderingTerm.desc(n.updatedAt)]))
       .get();
+  Future<List<Note>> getAllNotesIncludingDeleted() => (select(notes)..orderBy([(n) => OrderingTerm.desc(n.updatedAt)])).get();
 
   Future<List<Note>> getNotesByGroup(int groupId) => (select(notes)
         ..where((n) => n.groupId.equals(groupId) & n.isDeleted.equals(false))

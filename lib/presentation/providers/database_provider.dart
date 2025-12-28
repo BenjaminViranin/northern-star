@@ -119,9 +119,9 @@ final notesByGroupProvider = StreamProvider.family<List<Note>, int>((ref, groupI
   return repository.watchNotesByGroup(groupId);
 });
 
-final noteByIdProvider = FutureProvider.family<Note?, int>((ref, noteId) {
+final noteByIdProvider = StreamProvider.family<Note?, int>((ref, noteId) {
   final repository = ref.watch(notesRepositoryProvider);
-  return repository.getNoteById(noteId);
+  return repository.watchNoteById(noteId);
 });
 
 // Groups state providers - using Drift's reactive streams for instant updates

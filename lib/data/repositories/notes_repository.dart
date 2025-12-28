@@ -25,6 +25,10 @@ class NotesRepository {
     return await _database.getNoteById(id);
   }
 
+  Stream<Note?> watchNoteById(int id) {
+    return _database.watchNoteById(id);
+  }
+
   // Reactive streams - automatically update when data changes
   Stream<List<Note>> watchAllNotes() {
     return _database.watchAllNotes();
