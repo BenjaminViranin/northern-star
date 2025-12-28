@@ -1178,7 +1178,7 @@ class SyncService {
           .select('data, operation, changed_at')
           .eq('entity_table', 'notes')
           .eq('entity_id', supabaseId)
-          .in_('operation', ['snapshot', 'baseline'])
+          .or('operation.eq.snapshot,operation.eq.baseline')
           .order('changed_at', ascending: false)
           .limit(1);
 
